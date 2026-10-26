@@ -8,38 +8,34 @@
         Width="1400" Height="860"
         MinWidth="1000" MinHeight="640"
         Icon="avares://TintaStudio/Assets/logo.png">
-    <Window.Styles>
-        <Style Selector="Button.menu">
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Left" />
-            <Setter Property="Padding" Value="12,8" />
-        </Style>
-    </Window.Styles>
     <DockPanel>
-        <!-- Baris status bawah -->
-        <Border DockPanel.Dock="Bottom" Background="#16202E" Padding="12,7">
-            <Grid ColumnDefinitions="Auto,*">
-                <TextBlock Text="v0.1.0 — Fondasi &amp; Impor" Foreground="#8FA3B8" FontSize="12" />
-                <TextBlock Grid.Column="1" Text="{Binding StatusText}" Margin="18,0,0,0"
+        <!-- Bar status bawah ramping: versi + status kiri, konteks kanan -->
+        <Border DockPanel.Dock="Bottom" Background="#101216"
+                BorderBrush="#26292F" BorderThickness="0,1,0,0" Padding="12,6">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <TextBlock Text="v0.2.0 — Deteksi &amp; OCR" Foreground="#8A939E" FontSize="12" />
+                <TextBlock Grid.Column="1" Text="{Binding StatusText}" Margin="18,0,12,0"
                            FontSize="12" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="2" Text="{Binding ContextInfo}" Foreground="#8A939E"
+                           FontSize="12" />
             </Grid>
         </Border>
 
-        <Grid ColumnDefinitions="224,*">
+        <Grid ColumnDefinitions="216,*">
             <!-- Sidebar -->
-            <Border Background="#0B1220">
-                <DockPanel Margin="14">
-                    <StackPanel DockPanel.Dock="Top" Spacing="6">
+            <Border Background="#101216" BorderBrush="#26292F" BorderThickness="0,0,1,0">
+                <DockPanel Margin="12">
+                    <StackPanel DockPanel.Dock="Top" Spacing="5">
                         <Image Source="avares://TintaStudio/Assets/logo.png"
-                               Width="58" Height="58" HorizontalAlignment="Left" />
-                        <TextBlock Text="Tinta Studio" FontSize="21" FontWeight="Bold" />
+                               Width="52" Height="52" HorizontalAlignment="Left" />
+                        <TextBlock Text="Tinta Studio" FontSize="20" FontWeight="Bold" />
                         <TextBlock Text="Penerjemah &amp; penyunting komik"
-                                   Foreground="#8FA3B8" FontSize="11" TextWrapping="Wrap" />
+                                   Foreground="#8A939E" FontSize="11" TextWrapping="Wrap" />
                     </StackPanel>
-                    <StackPanel Spacing="4" Margin="0,22,0,0">
+                    <StackPanel Spacing="2" Margin="0,20,0,0">
                         <Button x:Name="MenuLibrary" Classes="menu" Content="Pustaka" />
                         <Button x:Name="MenuViewer" Classes="menu" Content="Penampil" />
-                        <Button Classes="menu" Content="Deteksi &amp; OCR (segera)" IsEnabled="False" />
+                        <Button x:Name="MenuDetect" Classes="menu" Content="Deteksi &amp; OCR" />
                         <Button Classes="menu" Content="Bersihkan (segera)" IsEnabled="False" />
                         <Button Classes="menu" Content="Terjemahan (segera)" IsEnabled="False" />
                         <Button Classes="menu" Content="Typesetting (segera)" IsEnabled="False" />
@@ -49,9 +45,10 @@
             </Border>
 
             <!-- Konten -->
-            <Grid Grid.Column="1" Background="#111A26">
+            <Grid Grid.Column="1" Background="#14171C">
                 <views:LibraryView IsVisible="{Binding IsLibraryActive}" />
                 <views:ViewerView IsVisible="{Binding IsViewerActive}" />
+                <views:DetectView IsVisible="{Binding IsDetectActive}" />
             </Grid>
         </Grid>
     </DockPanel>

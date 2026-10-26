@@ -11,12 +11,13 @@ namespace TintaStudio.ViewModels;
 /// Seluruh pekerjaan impor berjalan di utas latar; hasil diterapkan di
 /// utas UI lewat kelanjutan await.
 /// </summary>
-public sealed class MainWindowViewModel : ViewModelBase
+public sealed partial class MainWindowViewModel : ViewModelBase
 {
     private readonly LibraryService _library = new();
 
     private string _statusText = "Siap. Buka berkas komik atau folder untuk mulai.";
     private bool _isLibraryActive = true;
+    private bool _isDetectActive;
     private bool _isBusy;
     private Chapter? _currentChapter;
     private int _selectedPageIndex = -1;
@@ -59,7 +60,16 @@ public sealed class MainWindowViewModel : ViewModelBase
         }
     }
 
-    public bool IsViewerActive => !IsLibraryActive;
+    public bool IsDetectActive
+    {
+        get => _isDetectActive;
+        private set
+        {
+            if (Set(ref _isDetectActive, value)) Raise(nameof(IsViewerActive));
+        }
+    }
+
+    public bool IsViewerActive => !IsLibraryActive && !IsDetectActive;
 
     public LibraryEntry? SelectedLibraryEntry
     {
@@ -77,6 +87,8 @@ public sealed class MainWindowViewModel : ViewModelBase
                 Raise(nameof(HasChapter));
                 Raise(nameof(ChapterTitle));
                 Raise(nameof(PageIndicator));
+                Raise(nameof(PageIndicatorShort));
+                Raise(nameof(ContextInfo));
             }
         }
     }
@@ -93,6 +105,10 @@ public sealed class MainWindowViewModel : ViewModelBase
             {
                 UpdateCurrentPageBitmap();
                 Raise(nameof(PageIndicator));
+                Raise(nameof(PageIndicatorShort));
+                Raise(nameof(CurrentPageWidth));
+                Raise(nameof(CurrentPageHeight));
+                LoadBlocksForCurrentPage();
                 PrevPageCommand.RaiseCanExecuteChanged();
                 NextPageCommand.RaiseCanExecuteChanged();
             }
@@ -109,8 +125,53 @@ public sealed class MainWindowViewModel : ViewModelBase
         ? "Halaman 0 dari 0"
         : $"Halaman {SelectedPageIndex + 1} dari {CurrentChapter.Pages.Count}";
 
-    public void ShowLibrary() => IsLibraryActive = true;
-    public void ShowViewer() => IsLibraryActive = false;
+    /// <summary>Indikator ringkas model toolbar referensi: "1/6".</summary>
+    public string PageIndicatorShort => CurrentChapter is null || SelectedPageIndex < 0
+        ? "0/0"
+        : $"{SelectedPageIndex + 1}/{CurrentChapter.Pages.Count}";
+
+    /// <summary>Info konteks di sisi kanan bar status bawah.</summary>
+    public string ContextInfo
+    {
+        get
+        {
+            if (CurrentChapter is null)
+                return "";
+            var text = $"{CurrentChapter.Format} • {CurrentChapter.Pages.Count} halaman";
+            if (IsDetectActive)
+                text += $" • {Blocks.Count} blok di halaman ini";
+            return text;
+        }
+    }
+
+    public int CurrentPageWidth => CurrentChapter is not null
+        && SelectedPageIndex >= 0 && SelectedPageIndex < CurrentChapter.Pages.Count
+            ? CurrentChapter.Pages[SelectedPageIndex].Width : 0;
+
+    public int CurrentPageHeight => CurrentChapter is not null
+        && SelectedPageIndex >= 0 && SelectedPageIndex < CurrentChapter.Pages.Count
+            ? CurrentChapter.Pages[SelectedPageIndex].Height : 0;
+
+    public void ShowLibrary()
+    {
+        IsDetectActive = false;
+        IsLibraryActive = true;
+    }
+
+    public void ShowViewer()
+    {
+        IsDetectActive = false;
+        IsLibraryActive = false;
+    }
+
+    public void ShowDetect()
+    {
+        IsLibraryActive = false;
+        IsDetectActive = true;
+        RefreshModelStatuses();
+        LoadBlocksForCurrentPage();
+        Raise(nameof(ContextInfo));
+    }
 
     public void PrevPage()
     {
@@ -184,6 +245,7 @@ public sealed class MainWindowViewModel : ViewModelBase
     private void ApplyChapter(Chapter chapter)
     {
         CurrentChapter = chapter;
+        (_project, _projectChapter) = ProjectStore.GetOrCreate(chapter);
         Pages.Clear();
         foreach (var page in chapter.Pages)
             Pages.Add(new PageItemViewModel(page));

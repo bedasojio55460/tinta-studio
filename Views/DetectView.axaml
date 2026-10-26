@@ -1,0 +1,140 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TintaStudio.ViewModels"
+             xmlns:svc="using:TintaStudio.Services"
+             xmlns:model="using:TintaStudio.Models"
+             x:Class="TintaStudio.Views.DetectView"
+             x:DataType="vm:MainWindowViewModel">
+    <DockPanel>
+        <!-- Toolbar atas: bahasa + aksi deteksi kiri, kemajuan tengah,
+             navigasi chevron – X/Y – chevron kanan -->
+        <Border DockPanel.Dock="Top" Background="#101216"
+                BorderBrush="#26292F" BorderThickness="0,0,0,1" Padding="10,7">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <ComboBox ItemsSource="{Binding Languages}"
+                              SelectedItem="{Binding SelectedLanguage}" Width="116">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="svc:OcrLanguage">
+                                <TextBlock Text="{Binding DisplayName}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button x:Name="DetectPageButton" Classes="primary" Content="Deteksi Halaman Ini" />
+                    <Button x:Name="DetectChapterButton" Content="Deteksi Satu Bab" />
+                    <Button x:Name="CancelDetectButton" Content="Batal"
+                            IsVisible="{Binding IsDetecting}" />
+                    <ProgressBar IsVisible="{Binding IsDetecting}"
+                                 Value="{Binding DetectProgress}" Minimum="0" Maximum="1"
+                                 Width="130" Height="6" VerticalAlignment="Center" />
+                    <ToggleButton Content="Kotak" IsChecked="{Binding ShowOverlay}"
+                                  ToolTip.Tip="Tampilkan/sembunyikan kotak blok" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding ChapterTitle}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           FontSize="13" FontWeight="SemiBold"
+                           TextTrimming="CharacterEllipsis" Margin="12,0" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                    <Button Classes="tool" Content="&#x276E;" Command="{Binding PrevPageCommand}" />
+                    <TextBlock Text="{Binding PageIndicatorShort}" VerticalAlignment="Center"
+                               FontSize="13" MinWidth="34" TextAlignment="Center" />
+                    <Button Classes="tool" Content="&#x276F;" Command="{Binding NextPageCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid ColumnDefinitions="196,*,344" Margin="12">
+            <!-- Panel halaman kiri -->
+            <Border Background="#17191F" CornerRadius="7">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Classes="section" Text="HALAMAN"
+                               Margin="10,8,10,4" />
+                    <ListBox ItemsSource="{Binding Pages}"
+                             SelectedIndex="{Binding SelectedPageIndex}"
+                             Background="Transparent"
+                             ItemTemplate="{StaticResource PageThumbTemplate}" />
+                </DockPanel>
+            </Border>
+
+            <!-- Kanvas halaman + overlay kotak blok -->
+            <Border Grid.Column="1" Background="#0C0D10" Margin="12,0" CornerRadius="7">
+                <Grid x:Name="StageGrid" Margin="10">
+                    <Image x:Name="PageImage" Source="{Binding CurrentPageBitmap}"
+                           Stretch="Uniform" />
+                    <Canvas x:Name="OverlayCanvas" Background="Transparent" />
+                </Grid>
+            </Border>
+
+            <!-- Panel kanan: model, daftar blok, editor teks -->
+            <ScrollViewer Grid.Column="2">
+                <StackPanel Spacing="16" Margin="2,0,6,0">
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="section" Text="MODEL" />
+                        <ItemsControl ItemsSource="{Binding ModelStatuses}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:ModelStatusViewModel">
+                                    <Border Background="#17191F" CornerRadius="7" Padding="10,8"
+                                            Margin="0,0,0,6">
+                                        <StackPanel Spacing="3">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                                       FontSize="13" />
+                                            <TextBlock Text="{Binding Role}" Foreground="#8A939E"
+                                                       FontSize="11" TextWrapping="Wrap" />
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Text="{Binding StatusText}"
+                                                           Foreground="#2DD4BF" FontSize="12"
+                                                           VerticalAlignment="Center"
+                                                           TextWrapping="Wrap" />
+                                                <Button Grid.Column="1" Classes="tool" Content="Unduh"
+                                                        Command="{Binding DownloadCommand}"
+                                                        IsVisible="{Binding !IsReady}" />
+                                            </Grid>
+                                            <ProgressBar IsVisible="{Binding IsDownloading}"
+                                                         Value="{Binding DownloadProgress}"
+                                                         Minimum="0" Maximum="1" Height="5" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="section" Text="{Binding BlocksHeader}" />
+                        <ListBox ItemsSource="{Binding Blocks}"
+                                 SelectedItem="{Binding SelectedBlock}"
+                                 Height="216" Background="#17191F">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="model:TextBlock">
+                                    <StackPanel Spacing="1" Margin="2">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="{Binding Direction}" Foreground="#2DD4BF"
+                                                       FontSize="11" />
+                                            <TextBlock Text="{Binding Confidence, StringFormat={}{0:P0}}"
+                                                       Foreground="#8A939E" FontSize="11" />
+                                            <TextBlock Text="{Binding Language}" Foreground="#8A939E"
+                                                       FontSize="11" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Text}" FontSize="12"
+                                                   MaxLines="2" TextTrimming="CharacterEllipsis"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="section" Text="TEKS BLOK TERPILIH" />
+                        <TextBox Text="{Binding SelectedBlockText}" AcceptsReturn="True"
+                                 TextWrapping="Wrap" Height="118"
+                                 IsEnabled="{Binding HasSelectedBlock}"
+                                 PlaceholderText="Hasil OCR — bisa disunting, tersimpan otomatis" />
+                        <TextBlock Text="{Binding SelectedBlockMeta}" Foreground="#8A939E"
+                                   FontSize="11" TextWrapping="Wrap" />
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </DockPanel>
+</UserControl>

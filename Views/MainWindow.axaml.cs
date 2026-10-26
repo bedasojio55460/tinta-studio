@@ -1,19 +1,16 @@
 using Avalonia.Controls;
-using Avalonia.Media;
 using TintaStudio.ViewModels;
 
 namespace TintaStudio.Views;
 
 public partial class MainWindow : Window
 {
-    private static readonly IBrush ActiveBrush = new SolidColorBrush(Color.Parse("#0d9488"));
-    private static readonly IBrush InactiveBrush = Brushes.Transparent;
-
     public MainWindow()
     {
         InitializeComponent();
         MenuLibrary.Click += (_, _) => ViewModel?.ShowLibrary();
         MenuViewer.Click += (_, _) => ViewModel?.ShowViewer();
+        MenuDetect.Click += (_, _) => ViewModel?.ShowDetect();
         Opened += OnOpened;
     }
 
@@ -26,21 +23,43 @@ public partial class MainWindow : Window
         {
             vm.PropertyChanged += (_, args) =>
             {
-                if (args.PropertyName == nameof(MainWindowViewModel.IsLibraryActive))
+                if (args.PropertyName is nameof(MainWindowViewModel.IsLibraryActive)
+                    or nameof(MainWindowViewModel.IsViewerActive)
+                    or nameof(MainWindowViewModel.IsDetectActive))
                     UpdateMenuStyles();
             };
 
-            // Alat uji & screenshot: TINTA_OPEN=<jalur> membuka bab otomatis.
+            // Alat uji & screenshot: TINTA_OPEN=<jalur> membuka bab otomatis,
+            // TINTA_VIEW=library|viewer|detect memilih halaman awal.
             var autoOpen = Environment.GetEnvironmentVariable("TINTA_OPEN");
             if (!string.IsNullOrWhiteSpace(autoOpen))
                 await vm.OpenChapterPathAsync(autoOpen);
+            switch (Environment.GetEnvironmentVariable("TINTA_VIEW"))
+            {
+                case "detect": vm.ShowDetect(); break;
+                case "viewer": vm.ShowViewer(); break;
+                case "library": vm.ShowLibrary(); break;
+            }
         }
     }
 
     private void UpdateMenuStyles()
     {
-        var libraryActive = ViewModel?.IsLibraryActive ?? true;
-        MenuLibrary.Background = libraryActive ? ActiveBrush : InactiveBrush;
-        MenuViewer.Background = libraryActive ? InactiveBrush : ActiveBrush;
+        SetActive(MenuLibrary, ViewModel?.IsLibraryActive ?? true);
+        SetActive(MenuViewer, ViewModel?.IsViewerActive ?? false);
+        SetActive(MenuDetect, ViewModel?.IsDetectActive ?? false);
+    }
+
+    private static void SetActive(Button button, bool active)
+    {
+        if (active)
+        {
+            if (!button.Classes.Contains("active"))
+                button.Classes.Add("active");
+        }
+        else
+        {
+            button.Classes.Remove("active");
+        }
     }
 }

@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>TintaStudio</AssemblyName>
     <RootNamespace>TintaStudio</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
@@ -37,6 +37,12 @@
     <!-- PDFtoImage 5.2.0: versi terakhir yang sejalan SkiaSharp 3.119.x (Avalonia 12);
          5.3+ menuntut SkiaSharp 4.x yang bertabrakan dengan Avalonia 12.0.5. -->
     <PackageReference Include="PDFtoImage" Version="5.2.0" />
+    <!-- Runtime ONNX (CPU) untuk deteksi teks + OCR PaddleOCR (Tahap 2) -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.24.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TintaStudio.Tests" />
   </ItemGroup>
 
 </Project>

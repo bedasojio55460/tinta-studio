@@ -3,31 +3,42 @@
              xmlns:vm="using:TintaStudio.ViewModels"
              x:Class="TintaStudio.Views.ViewerView"
              x:DataType="vm:MainWindowViewModel">
-    <DockPanel Margin="18">
-        <TextBlock DockPanel.Dock="Top" Text="{Binding ChapterTitle}"
-                   FontSize="20" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
-        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="12"
-                    HorizontalAlignment="Center" Margin="0,12,0,0">
-            <Button Content="◀ Sebelumnya" Command="{Binding PrevPageCommand}" />
-            <TextBlock Text="{Binding PageIndicator}" VerticalAlignment="Center" FontSize="13" />
-            <Button Content="Berikutnya ▶" Command="{Binding NextPageCommand}" />
-        </StackPanel>
-        <Grid ColumnDefinitions="186,*" Margin="0,12,0,0">
-            <ListBox ItemsSource="{Binding Pages}"
-                     SelectedIndex="{Binding SelectedPageIndex}"
-                     Background="#0D1622">
-                <ListBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:PageItemViewModel">
-                        <StackPanel Spacing="3" HorizontalAlignment="Center" Margin="4">
-                            <Image Source="{Binding Thumbnail}" Width="142" Stretch="Uniform" />
-                            <TextBlock Text="{Binding Label}" HorizontalAlignment="Center" FontSize="12" />
-                            <TextBlock Text="{Binding Detail}" HorizontalAlignment="Center"
-                                       FontSize="10" Foreground="#8FA3B8" />
-                        </StackPanel>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-            <Border Grid.Column="1" Background="#0B1220" Margin="12,0,0,0" CornerRadius="6">
+    <DockPanel>
+        <!-- Toolbar atas: aksi berkas kiri, judul tengah,
+             navigasi chevron – X/Y – chevron kanan -->
+        <Border DockPanel.Dock="Top" Background="#101216"
+                BorderBrush="#26292F" BorderThickness="0,0,0,1" Padding="10,7">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button x:Name="ViewerOpenFile" Classes="tool" Content="Buka Berkas…" />
+                    <Button x:Name="ViewerOpenFolder" Classes="tool" Content="Buka Folder…" />
+                    <Button x:Name="ViewerGoDetect" Classes="tool" Content="Deteksi &amp; OCR" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding ChapterTitle}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           FontSize="13" FontWeight="SemiBold"
+                           TextTrimming="CharacterEllipsis" Margin="12,0" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                    <Button Classes="tool" Content="&#x276E;" Command="{Binding PrevPageCommand}" />
+                    <TextBlock Text="{Binding PageIndicatorShort}" VerticalAlignment="Center"
+                               FontSize="13" MinWidth="34" TextAlignment="Center" />
+                    <Button Classes="tool" Content="&#x276F;" Command="{Binding NextPageCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid ColumnDefinitions="196,*" Margin="12">
+            <Border Background="#17191F" CornerRadius="7">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Classes="section" Text="HALAMAN"
+                               Margin="10,8,10,4" />
+                    <ListBox ItemsSource="{Binding Pages}"
+                             SelectedIndex="{Binding SelectedPageIndex}"
+                             Background="Transparent"
+                             ItemTemplate="{StaticResource PageThumbTemplate}" />
+                </DockPanel>
+            </Border>
+            <Border Grid.Column="1" Background="#0C0D10" Margin="12,0,0,0" CornerRadius="7">
                 <Image Source="{Binding CurrentPageBitmap}" Stretch="Uniform" Margin="10" />
             </Border>
         </Grid>

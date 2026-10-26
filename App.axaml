@@ -1,11 +1,159 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TintaStudio.ViewModels"
              x:Class="TintaStudio.App"
              RequestedThemeVariant="Dark">
     <Application.Styles>
         <FluentTheme />
+
+        <!-- ═══ Bahasa desain Tinta Studio (Tahap 2) ═══
+             Tema gelap nyaris hitam; tombol kecil seragam persegi
+             membulat (radius 7), isian abu gelap + border samar;
+             aksen TEAL #0d9488 untuk aksi utama & penanda terpilih. -->
+
+        <!-- Tombol sekunder (bawaan semua tombol) -->
+        <Style Selector="Button">
+            <Setter Property="Background" Value="#2A2D33" />
+            <Setter Property="BorderBrush" Value="#3D434E" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="Foreground" Value="#E8EAED" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="Button:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#363B44" />
+            <Setter Property="BorderBrush" Value="#4C5462" />
+        </Style>
+        <Style Selector="Button:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="#1E2126" />
+            <Setter Property="BorderBrush" Value="#33373F" />
+        </Style>
+        <Style Selector="Button:disabled">
+            <Setter Property="Foreground" Value="#767E89" />
+        </Style>
+        <Style Selector="Button:disabled /template/ ContentPresenter">
+            <Setter Property="Background" Value="#22242A" />
+            <Setter Property="BorderBrush" Value="#2E3238" />
+        </Style>
+
+        <!-- Tombol utama: teal -->
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="#0D9488" />
+            <Setter Property="BorderBrush" Value="#0F766E" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="14,7" />
+        </Style>
+        <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#14B8A6" />
+            <Setter Property="BorderBrush" Value="#14B8A6" />
+        </Style>
+        <Style Selector="Button.primary:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="#0F766E" />
+            <Setter Property="BorderBrush" Value="#0F766E" />
+        </Style>
+        <Style Selector="Button.primary:disabled /template/ ContentPresenter">
+            <Setter Property="Background" Value="#134E4A" />
+            <Setter Property="BorderBrush" Value="#134E4A" />
+        </Style>
+
+        <!-- Tombol toolbar kompak (ikon/teks pendek, model chevron) -->
+        <Style Selector="Button.tool">
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="MinWidth" Value="30" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+
+        <!-- Item menu sidebar: lebar penuh, rapat; terpilih = latar
+             lebih terang + bilah aksen teal 3px di tepi kiri -->
+        <Style Selector="Button.menu">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="3,1,1,1" />
+        </Style>
+        <Style Selector="Button.menu:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#1C2027" />
+        </Style>
+        <Style Selector="Button.menu.active">
+            <Setter Property="BorderBrush" Value="#0D9488" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.menu.active /template/ ContentPresenter">
+            <Setter Property="Background" Value="#1E2B29" />
+            <Setter Property="BorderBrush" Value="#0D9488" />
+        </Style>
+        <Style Selector="Button.menu:disabled">
+            <Setter Property="Foreground" Value="#59616C" />
+        </Style>
+
+        <!-- Toggle: mengikuti bahasa tombol; menyala = teal gelap -->
+        <Style Selector="ToggleButton">
+            <Setter Property="Background" Value="#2A2D33" />
+            <Setter Property="BorderBrush" Value="#3D434E" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="Foreground" Value="#E8EAED" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="ToggleButton:checked /template/ ContentPresenter">
+            <Setter Property="Background" Value="#0B3F3A" />
+            <Setter Property="BorderBrush" Value="#0D9488" />
+        </Style>
+
+        <!-- Bidang isian gelap membulat -->
+        <Style Selector="TextBox">
+            <Setter Property="Background" Value="#14171C" />
+            <Setter Property="BorderBrush" Value="#33383F" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style Selector="ComboBox">
+            <Setter Property="Background" Value="#2A2D33" />
+            <Setter Property="BorderBrush" Value="#3D434E" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+
+        <!-- Kepala seksi: kapital kecil abu-abu -->
+        <Style Selector="TextBlock.section">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#8A939E" />
+            <Setter Property="LetterSpacing" Value="1.2" />
+        </Style>
+
+        <!-- Item daftar terpilih: isian teal samar -->
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="#1E2B29" />
+        </Style>
+
+        <Style Selector="ProgressBar">
+            <Setter Property="Foreground" Value="#0D9488" />
+            <Setter Property="Background" Value="#22262D" />
+        </Style>
     </Application.Styles>
     <Application.Resources>
+        <!-- Templat miniatur halaman (Penampil & Deteksi): item terpilih
+             ditandai bilah aksen teal tipis di tepi kiri -->
+        <DataTemplate x:Key="PageThumbTemplate" x:DataType="vm:PageItemViewModel">
+            <Grid ColumnDefinitions="3,*">
+                <Rectangle Fill="#0D9488"
+                           IsVisible="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
+                <StackPanel Grid.Column="1" Spacing="3" HorizontalAlignment="Center" Margin="4">
+                    <Image Source="{Binding Thumbnail}" Width="142" Stretch="Uniform" />
+                    <TextBlock Text="{Binding Label}" HorizontalAlignment="Center" FontSize="12" />
+                    <TextBlock Text="{Binding Detail}" HorizontalAlignment="Center"
+                               FontSize="10" Foreground="#8A939E" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
         <!-- Aksen teal khas Tinta Studio -->
         <Color x:Key="SystemAccentColor">#0d9488</Color>
         <Color x:Key="SystemAccentColorDark1">#0f766e</Color>

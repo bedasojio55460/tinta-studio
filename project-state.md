@@ -95,3 +95,78 @@
     tuntas di Tahap 6 packaging. Miniatur halaman dimuat sinkron di
     utas UI — bab ratusan halaman akan terasa berat (optimasi latar
     di tahap lanjut).
+- 2026-10-26 ~12:08–13:25 PDT: **Tahap 2 (v0.2.0) SELESAI & terverifikasi —
+  Deteksi & OCR.**
+  - Model (publik, ONNX, CPU; katalog + SHA-256 di docs/models.md,
+    unduh via tools/fetch_models.sh / tombol aplikasi ke
+    ~/.cache/tinta-studio/models/; runtime Microsoft.ML.OnnxRuntime):
+    detektor = **RT-DETR-v2 int8** ogkalu/comic-text-and-bubble-detector
+    (`detector-v4-s_int8.onnx`, 11.120.765 byte) — keluarga
+    comic-text-detector; varian YOLO murni yang hidup di HF tidak ada
+    yang ringan+terawat, ekspor RT-DETR inilah padanan setaranya
+    (kelas bubble/text_bubble/text_free, tanpa NMS; NMS pengaman
+    IoU 0,6 tetap dipasang). OCR = PaddleOCR ONNX: ja PP-OCRv4 rec
+    (cycloneboy, +kamus 4.399), ko PP-OCRv5 mobile rec, ch PP-OCRv5
+    server rec (monkt/paddleocr-onnx), + cls arah garis PP-LCNet
+    (bukuroo) untuk koreksi 180°.
+  - Kontrak model dikalibrasi empiris (bukan asumsi): detektor
+    mengharapkan `orig_target_sizes` = **[lebar, tinggi]** (terbalik
+    dari konvensi HF); keluaran rec PaddleOCR **sudah softmax**
+    (keyakinan = rata-rata prob. maksimum CTC). Teks vertikal:
+    potongan lebih tinggi dari lebar diputar 90° dua arah, dipilih
+    keyakinan tertinggi (arah yang benar: tepi atas → tepi kiri).
+    Blok multi-baris dibagi per garis via proyeksi tinta BERDENSITAS
+    (ambang piksel/baris — garis tepi bubble elips menyumbang tinta
+    di semua baris, uji ada/tidak tinta tidak cukup). Blok yang
+    OCR-nya kosong tidak disimpan (artefak lengkung bubble).
+    Urutan baca: manga ja vertikal = kolom kanan→kiri, selain itu
+    baris atas→bawah lalu kiri→kanan (heuristik tumpang-tindih).
+  - Skema proyek **v2**: ProjectChapter.Pages[] → TextBlock (bbox
+    piksel asli, arah, bahasa, teks, keyakinan OCR, skor deteksi);
+    berkas v1 tetap termuat (uji khusus). Proyek kerja per bab
+    otomatis di ~/.config/tinta-studio/projects/<hash>.tinta.json.
+  - UI: halaman Deteksi & OCR aktif (pemilih bahasa, Deteksi
+    Halaman Ini / Satu Bab di latar + kemajuan + Batal, overlay
+    kotak bernomor di atas halaman + toggle, daftar blok, editor
+    teks blok tersimpan otomatis, kartu Model per model + unduh
+    latar). CLI `--ocr <bab> [--lang ja|ko|ch]` + `--download-models`.
+  - **Polesan tombol & tata letak (umpan balik Ando dari screenshot
+    v0.1.0; referensi resmi dipelajari dari tmp/ref-chisa/)**: gaya
+    tombol terpusat di App.axaml — kompak seragam, radius 7, isian
+    abu gelap #2A2D33 + border #3D434E, hover/pressed/disabled,
+    varian primary TEAL #0D9488; toolbar ATAS di Penampil & Deteksi
+    (aksi kiri; judul tengah; navigasi chevron–"X/Y"–chevron kanan —
+    tombol Sebelumnya/Berikutnya lama di bawah kanvas dipindah ke
+    pola ini); item sidebar terpilih & miniatur terpilih ditandai
+    bilah aksen teal tipis di tepi kiri; bar status ramping (versi +
+    status kiri, konteks bab/format/blok kanan); tema digelapkan ke
+    nyaris hitam netral. Screenshot bukti: tmp/tinta-v02-ui.png
+    (Deteksi & OCR + overlay + daftar blok) dan
+    tmp/tinta-v02-buttons.png (Penampil + toolbar atas).
+    **Konvergensi tata letak editor penuh (kanvas ganda
+    Original/Translated + panel properti kanan bertab) dijadwalkan
+    di Tahap 5 Typesetting** — tahap ini yang diterapkan adalah
+    bahasa tombol + penempatan toolbar.
+  - Hasil fixture sintetis (teks diketahui, model asli): JA
+    horizontal 「こんにちは」 terbaca persis (keyakinan 1,00), JA
+    vertikal 「ありがとう」 persis (0,86; arah terdeteksi vertikal),
+    KO 「안녕하세요」 persis (1,00), ZH 「谢谢你」 persis (1,00);
+    bubble dua baris terbaca sebagai dua garis tergabung.
+  - Tes: **23 lolos, 0 gagal, 0 skip** via runner konsol xUnit
+    dalam-proses (13 lama tetap hijau + 10 baru: pipeline ja/ko/ch,
+    dua baris, pemisah garis, urutan baca ×2, proyek v2 round-trip,
+    muat v1, CLI --ocr pada CBZ fixture). Build Release bersih;
+    publish win-x64 single-file ulang: **TintaStudio.exe
+    124.375.633 byte** (PE32+ GUI; kini termasuk pustaka native
+    OnnxRuntime — IncludeNativeLibrariesForSelfExtract=true agar
+    .exe benar-benar mandiri).
+  - Batas jujur: (1) OCR satu bahasa per bab per jalan (pilihan
+    pengguna) — halaman campuran bahasa perlu jalan terpisah;
+    (2) model rec adalah model SATU BARIS — blok multi-baris
+    ditangani pemisah garis proyeksi tinta, bukan model deteksi
+    garis; teks miring/berputar bebas di luar 0/90/180° belum
+    ditangani; (3) detektor kadang menandai lengkung bubble sebagai
+    teks — disaring lewat hasil OCR kosong; (4) kualitas pada
+    halaman manga asli (screentone, teks kecil, efek suara) belum
+    diukur — fixture masih sintetis bersih; (5) CBR & AVIF: batas
+    Tahap 1 yang sama. Berikutnya: Tahap 3 — Pembersihan bubble.
