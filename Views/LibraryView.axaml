@@ -1,0 +1,41 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TintaStudio.ViewModels"
+             xmlns:svc="using:TintaStudio.Services"
+             x:Class="TintaStudio.Views.LibraryView"
+             x:DataType="vm:MainWindowViewModel">
+    <DockPanel Margin="18">
+        <StackPanel DockPanel.Dock="Top" Spacing="10">
+            <TextBlock Text="Pustaka Bab" FontSize="22" FontWeight="Bold" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button x:Name="OpenFileButton" Content="Buka Berkas Komik…" />
+                <Button x:Name="OpenFolderButton" Content="Buka Folder…" />
+                <Button x:Name="OpenInViewerButton" Content="Buka di Penampil" />
+                <Button x:Name="RemoveButton" Content="Hapus dari Pustaka" />
+            </StackPanel>
+            <TextBlock Text="Bab yang pernah dibuka (terbaru di atas). Klik dua kali untuk membuka."
+                       Foreground="#8FA3B8" FontSize="12" />
+        </StackPanel>
+        <ListBox ItemsSource="{Binding LibraryEntries}"
+                 SelectedItem="{Binding SelectedLibraryEntry}"
+                 x:Name="ChapterList"
+                 Margin="0,10,0,0"
+                 Background="#0D1622">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="svc:LibraryEntry">
+                    <StackPanel Margin="6,4" Spacing="2">
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="{Binding Format}" Foreground="#2dd4bf" FontSize="12" />
+                            <TextBlock Text="•" Foreground="#8FA3B8" FontSize="12" />
+                            <TextBlock Text="{Binding PageCount}" Foreground="#8FA3B8" FontSize="12" />
+                            <TextBlock Text="halaman" Foreground="#8FA3B8" FontSize="12" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding SourcePath}" Foreground="#5B6B7D" FontSize="11"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</UserControl>

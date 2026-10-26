@@ -1,0 +1,18 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="TintaStudio.App"
+             RequestedThemeVariant="Dark">
+    <Application.Styles>
+        <FluentTheme />
+    </Application.Styles>
+    <Application.Resources>
+        <!-- Aksen teal khas Tinta Studio -->
+        <Color x:Key="SystemAccentColor">#0d9488</Color>
+        <Color x:Key="SystemAccentColorDark1">#0f766e</Color>
+        <Color x:Key="SystemAccentColorDark2">#115e59</Color>
+        <Color x:Key="SystemAccentColorDark3">#134e4a</Color>
+        <Color x:Key="SystemAccentColorLight1">#14b8a6</Color>
+        <Color x:Key="SystemAccentColorLight2">#2dd4bf</Color>
+        <Color x:Key="SystemAccentColorLight3">#5eead4</Color>
+    </Application.Resources>
+</Application>

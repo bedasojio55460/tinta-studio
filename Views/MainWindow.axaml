@@ -1,0 +1,58 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:TintaStudio.ViewModels"
+        xmlns:views="using:TintaStudio.Views"
+        x:Class="TintaStudio.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Tinta Studio"
+        Width="1400" Height="860"
+        MinWidth="1000" MinHeight="640"
+        Icon="avares://TintaStudio/Assets/logo.png">
+    <Window.Styles>
+        <Style Selector="Button.menu">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Padding" Value="12,8" />
+        </Style>
+    </Window.Styles>
+    <DockPanel>
+        <!-- Baris status bawah -->
+        <Border DockPanel.Dock="Bottom" Background="#16202E" Padding="12,7">
+            <Grid ColumnDefinitions="Auto,*">
+                <TextBlock Text="v0.1.0 — Fondasi &amp; Impor" Foreground="#8FA3B8" FontSize="12" />
+                <TextBlock Grid.Column="1" Text="{Binding StatusText}" Margin="18,0,0,0"
+                           FontSize="12" TextTrimming="CharacterEllipsis" />
+            </Grid>
+        </Border>
+
+        <Grid ColumnDefinitions="224,*">
+            <!-- Sidebar -->
+            <Border Background="#0B1220">
+                <DockPanel Margin="14">
+                    <StackPanel DockPanel.Dock="Top" Spacing="6">
+                        <Image Source="avares://TintaStudio/Assets/logo.png"
+                               Width="58" Height="58" HorizontalAlignment="Left" />
+                        <TextBlock Text="Tinta Studio" FontSize="21" FontWeight="Bold" />
+                        <TextBlock Text="Penerjemah &amp; penyunting komik"
+                                   Foreground="#8FA3B8" FontSize="11" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Spacing="4" Margin="0,22,0,0">
+                        <Button x:Name="MenuLibrary" Classes="menu" Content="Pustaka" />
+                        <Button x:Name="MenuViewer" Classes="menu" Content="Penampil" />
+                        <Button Classes="menu" Content="Deteksi &amp; OCR (segera)" IsEnabled="False" />
+                        <Button Classes="menu" Content="Bersihkan (segera)" IsEnabled="False" />
+                        <Button Classes="menu" Content="Terjemahan (segera)" IsEnabled="False" />
+                        <Button Classes="menu" Content="Typesetting (segera)" IsEnabled="False" />
+                        <Button Classes="menu" Content="Ekspor (segera)" IsEnabled="False" />
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- Konten -->
+            <Grid Grid.Column="1" Background="#111A26">
+                <views:LibraryView IsVisible="{Binding IsLibraryActive}" />
+                <views:ViewerView IsVisible="{Binding IsViewerActive}" />
+            </Grid>
+        </Grid>
+    </DockPanel>
+</Window>

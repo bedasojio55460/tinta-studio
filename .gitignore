@@ -1,0 +1,12 @@
+# .NET
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+artifacts/
+*.user
+
+# Kerja lokal
+tmp/
+.venv/
+__pycache__/

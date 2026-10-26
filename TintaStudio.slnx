@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="TintaStudio.csproj" />
+  <Project Path="TintaStudio.Tests/TintaStudio.Tests.csproj" />
+</Solution>
