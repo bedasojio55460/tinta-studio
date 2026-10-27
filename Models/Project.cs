@@ -17,9 +17,11 @@ public sealed class TintaProject
     /// v2 (Tahap 2): bab memuat halaman + blok teks deteksi/OCR.
     /// v3 (Tahap 3): halaman memuat operasi pembersihan + sapuan manual.
     /// v4 (Tahap 4): blok memuat hasil terjemahan + cap penyedia.
+    /// v5 (Tahap 5): blok memuat gaya typeset (font, warna, stroke,
+    /// perataan, geometri render) untuk digambar ke halaman bersih.
     /// CATATAN: API key TIDAK PERNAH disimpan di berkas proyek —
     /// key hanya hidup di ~/.config/tinta-studio/keys.json (0600).</summary>
-    public const int CurrentVersion = 4;
+    public const int CurrentVersion = 5;
 
     public string Format { get; set; } = FormatMarker;
     public int Version { get; set; } = CurrentVersion;
@@ -235,4 +237,93 @@ public sealed class TextBlock
 
     /// <summary>Cap asal milik teks di TranslationBackup.</summary>
     public string? TranslationBackupBy { get; set; }
+
+    /// <summary>Gaya typeset blok ini (Tahap 5): cara teks terjemahan
+    /// digambar ke halaman bersih. Null = belum di-typeset (render
+    /// memakai gaya bawaan). Berkas v1–v4 tidak memuat ini → null;
+    /// aman dimuat.</summary>
+    public TypesetStyle? Typeset { get; set; }
+}
+
+/// <summary>Perataan teks di dalam kotak render typeset.</summary>
+public enum TypesetAlign
+{
+    Left,
+    Center,
+    Right,
+}
+
+/// <summary>
+/// Gaya typeset satu blok (Tahap 5). Nilai bawaan kelas ini adalah
+/// gaya "aman": font sans sistem, ukuran otomatis (pas ke kotak),
+/// hitam, tanpa stroke, rata tengah. FontFamily kosong berarti
+/// "sans aman" yang diselesaikan mesin render ke font sistem yang
+/// ada — tidak ada font tertanam/berlisensi yang disimpan proyek.
+/// </summary>
+public sealed class TypesetStyle
+{
+    /// <summary>Nama keluarga font sistem; "" = sans aman bawaan.</summary>
+    public string FontFamily { get; set; } = "";
+
+    /// <summary>Ukuran font dalam piksel halaman; 0 = otomatis
+    /// (dicari ukuran terbesar yang muat di kotak render).</summary>
+    public double FontSize { get; set; }
+
+    public bool Bold { get; set; }
+    public bool Italic { get; set; }
+
+    /// <summary>Warna isi teks "#RRGGBB".</summary>
+    public string ColorHex { get; set; } = "#000000";
+
+    /// <summary>Warna garis tepi (outline) teks "#RRGGBB".</summary>
+    public string StrokeHex { get; set; } = "#FFFFFF";
+
+    /// <summary>Lebar garis tepi dalam piksel halaman; 0 = tanpa stroke.</summary>
+    public double StrokeWidth { get; set; }
+
+    public TypesetAlign Align { get; set; } = TypesetAlign.Center;
+
+    /// <summary>Pengali tinggi baris terhadap tinggi alami font.</summary>
+    public double LineSpacing { get; set; } = 1.1;
+
+    /// <summary>Spasi tambahan antar huruf, piksel halaman.</summary>
+    public double LetterSpacing { get; set; }
+
+    /// <summary>Tulis vertikal gaya CJK: karakter ditumpuk per kolom,
+    /// kolom berjalan kanan → kiri.</summary>
+    public bool Vertical { get; set; }
+
+    /// <summary>Rotasi kotak render: 0/90/180/270 derajat.</summary>
+    public int Rotation { get; set; }
+
+    /// <summary>Geser kotak render dari kotak blok (piksel).</summary>
+    public int Dx { get; set; }
+    public int Dy { get; set; }
+
+    /// <summary>Ubah lebar/tinggi kotak render dari kotak blok (piksel,
+    /// boleh negatif; hasil akhir dijepit minimum 8 px).</summary>
+    public int Dw { get; set; }
+    public int Dh { get; set; }
+
+    /// <summary>Nama preset terakhir yang diterapkan ke gaya ini.</summary>
+    public string? PresetName { get; set; }
+
+    /// <summary>Salinan dalam (semua bidang nilai/teks).</summary>
+    public TypesetStyle Clone() => new()
+    {
+        FontFamily = FontFamily,
+        FontSize = FontSize,
+        Bold = Bold,
+        Italic = Italic,
+        ColorHex = ColorHex,
+        StrokeHex = StrokeHex,
+        StrokeWidth = StrokeWidth,
+        Align = Align,
+        LineSpacing = LineSpacing,
+        LetterSpacing = LetterSpacing,
+        Vertical = Vertical,
+        Rotation = Rotation,
+        Dx = Dx, Dy = Dy, Dw = Dw, Dh = Dh,
+        PresetName = PresetName,
+    };
 }

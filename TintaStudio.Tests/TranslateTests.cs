@@ -227,7 +227,7 @@ public sealed class TranslateTests : IDisposable
         var raw = File.ReadAllText(path);
         Assert.DoesNotContain("DUMMY-GROQ-1", raw);
         var loaded = TintaProject.Load(path);
-        Assert.Equal(4, loaded.Version);
+        Assert.Equal(TintaProject.CurrentVersion, loaded.Version);
         var loadedBlocks = loaded.Chapters[0].Pages[0].Blocks;
         Assert.Equal(blocks.Select(b => b.Translation),
                      loadedBlocks.Select(b => b.Translation));

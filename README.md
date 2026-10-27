@@ -11,6 +11,33 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.5.0 — Tahap 5 (Typesetting)
+
+- **Teks terjemahan digambar ke halaman bersih** di dalam kotak
+  bloknya (`Services/Typeset.cs`, SkiaSharp) → halaman final yang
+  bisa dibaca; dasar render = gambar bersih Tahap 3 (atau halaman
+  asli bila belum dibersihkan). Proyek naik ke skema **v5** (blok
+  + `typeset`); berkas v1–v4 tetap termuat.
+- **Pas-otomatis**: ukuran font dicari (biner) terbesar yang muat
+  di kotak render sesudah pembungkusan kata; ukuran manual dipakai
+  apa adanya. Gaya per blok: keluarga font **sistem** (tanpa font
+  tertanam berlisensi), bold/italic, warna teks, **outline stroke**
+  (lebar + warna), perataan kiri/tengah/kanan, spasi baris & huruf,
+  **vertikal gaya CJK** (kolom kanan → kiri), rotasi 0/90/180/270,
+  serta geometri kotak (geser Dx/Dy, ubah Dw/Dh).
+- **Preset bawaan** (kumpulan properti, bukan berkas font):
+  Dialog, Teriak (bold + stroke), Bisik (italic), Narasi (italic).
+- **Halaman Typesetting**: kanvas final + panel properti kanan
+  bergaya referensi (seksi kapital kecil), daftar blok berstatus,
+  klik kanvas untuk memilih, **seret untuk memindahkan** blok,
+  toggle **Asli** / **Bersih** untuk membandingkan, tombol
+  "Terapkan Otomatis Halaman Ini / Satu Bab". CLI: `--render
+  <bab> [--out <folder>]` menulis halaman final PNG per halaman.
+- **Di luar cakupan tahap ini (jujur)**: editor poligon bubble
+  vektor ala referensi DITUNDA — detektor kami menghasilkan kotak
+  teks persegi, bukan poligon bubble; penyesuaian bentuk lewat
+  geometri kotak (geser/ubah ukuran) dulu.
+
 ## Status: v0.4.0 — Tahap 4 (Terjemahan)
 
 - **Dua mode terjemahan**: **Otomatis** (penyedia AI, per blok /

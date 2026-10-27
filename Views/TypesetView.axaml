@@ -1,0 +1,224 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TintaStudio.ViewModels"
+             x:Class="TintaStudio.Views.TypesetView"
+             x:DataType="vm:MainWindowViewModel">
+    <DockPanel>
+        <!-- Toolbar atas: terapkan otomatis kiri, judul tengah,
+             pembanding + navigasi chevron – X/Y – chevron kanan -->
+        <Border DockPanel.Dock="Top" Background="#101216"
+                BorderBrush="#26292F" BorderThickness="0,0,0,1" Padding="10,7">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button x:Name="AutoPageButton" Classes="primary"
+                            Content="Terapkan Otomatis Halaman Ini"
+                            ToolTip.Tip="Isi gaya bawaan ke blok berterjemahan yang belum di-typeset" />
+                    <Button x:Name="AutoChapterButton" Content="Terapkan Otomatis Satu Bab"
+                            ToolTip.Tip="Sama, untuk seluruh bab" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding ChapterTitle}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           FontSize="13" FontWeight="SemiBold"
+                           TextTrimming="CharacterEllipsis" Margin="12,0" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                    <ToggleButton Content="Asli" IsChecked="{Binding TypesetShowOriginal}"
+                                  ToolTip.Tip="Bandingkan: tampilkan halaman asli" />
+                    <ToggleButton Content="Bersih" IsChecked="{Binding TypesetShowClean}"
+                                  ToolTip.Tip="Bandingkan: tampilkan halaman bersih tanpa teks typeset" />
+                    <Button Classes="tool" Content="&#x276E;" Command="{Binding PrevPageCommand}" />
+                    <TextBlock Text="{Binding PageIndicatorShort}" VerticalAlignment="Center"
+                               FontSize="13" MinWidth="34" TextAlignment="Center" />
+                    <Button Classes="tool" Content="&#x276F;" Command="{Binding NextPageCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid ColumnDefinitions="196,*,368" Margin="12">
+            <!-- Panel halaman kiri -->
+            <Border Background="#17191F" CornerRadius="7">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Classes="section" Text="HALAMAN"
+                               Margin="10,8,10,4" />
+                    <ListBox ItemsSource="{Binding Pages}"
+                             SelectedIndex="{Binding SelectedPageIndex}"
+                             Background="Transparent"
+                             ItemTemplate="{StaticResource PageThumbTemplate}" />
+                </DockPanel>
+            </Border>
+
+            <!-- Kanvas halaman final -->
+            <Border Grid.Column="1" Background="#0C0D10" Margin="12,0" CornerRadius="7">
+                <Grid x:Name="StageGrid" Margin="10" Background="Transparent">
+                    <Image x:Name="PageImage" Source="{Binding TypesetCanvasBitmap}"
+                           Stretch="Uniform" />
+                    <Canvas x:Name="OverlayCanvas" Background="Transparent"
+                            IsHitTestVisible="False" />
+                </Grid>
+            </Border>
+
+            <!-- Panel kanan: daftar blok + properti blok terpilih -->
+            <ScrollViewer Grid.Column="2">
+                <StackPanel Spacing="14" Margin="2,0,6,0">
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="section" Text="{Binding TypesetBlocksHeader}" />
+                        <ListBox x:Name="BlockList" ItemsSource="{Binding TypesetBlocks}"
+                                 SelectedItem="{Binding SelectedTypesetBlock}"
+                                 Background="#17191F" MaxHeight="240">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:TypesetBlockItemViewModel">
+                                    <StackPanel Spacing="2" Margin="2">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="{Binding Number, StringFormat='#{0}'}"
+                                                       Foreground="#2DD4BF" FontSize="11"
+                                                       FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Meta}" Foreground="#8A939E"
+                                                       FontSize="11" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding TranslationText}" FontSize="12"
+                                                   MaxLines="1" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding StatusText}" Foreground="#8A939E"
+                                                   FontSize="11" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock Text="Klik blok di kanvas atau daftar untuk memilih; seret blok terpilih di kanvas untuk memindahkannya."
+                                   Foreground="#8A939E" FontSize="11" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <ContentControl Content="{Binding SelectedTypesetBlock}">
+                        <ContentControl.ContentTemplate>
+                            <DataTemplate x:DataType="vm:TypesetBlockItemViewModel">
+                                <StackPanel Spacing="14">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Classes="section" Text="TEKS TERJEMAHAN" />
+                                        <TextBox Text="{Binding TranslationText}"
+                                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                                 Height="54"
+                                                 PlaceholderText="Belum ada terjemahan" />
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Classes="section" Text="FONT" />
+                                        <ComboBox ItemsSource="{Binding FontChoices}"
+                                                  SelectedItem="{Binding FontFamilyChoice}"
+                                                  HorizontalAlignment="Stretch" />
+                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" >
+                                            <CheckBox Content="Ukuran otomatis" IsChecked="{Binding IsAutoSize}"
+                                                      VerticalAlignment="Center" />
+                                            <NumericUpDown Grid.Column="1" Value="{Binding FontSizeValue}"
+                                                           Minimum="0" Maximum="400" Increment="1"
+                                                           Margin="8,0" ToolTip.Tip="Ukuran font (piksel halaman); kosong/0 = otomatis" />
+                                            <ToggleButton Grid.Column="2" Content="B" FontWeight="Bold"
+                                                          IsChecked="{Binding Bold}" Width="34" />
+                                            <ToggleButton Grid.Column="3" Content="I" FontStyle="Italic"
+                                                          IsChecked="{Binding Italic}" Width="34"
+                                                          Margin="4,0,0,0" />
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Classes="section" Text="WARNA &amp; GARIS TEPI" />
+                                        <Grid ColumnDefinitions="Auto,Auto,*,Auto,*" >
+                                            <TextBlock Text="Teks" VerticalAlignment="Center"
+                                                       Foreground="#8A939E" FontSize="12" />
+                                            <Border Grid.Column="1" Width="22" Height="22" CornerRadius="5"
+                                                    BorderBrush="#3D434E" BorderThickness="1"
+                                                    Background="{Binding ColorBrush}" Margin="6,0" />
+                                            <TextBox Grid.Column="2" Text="{Binding ColorHex}"
+                                                     ToolTip.Tip="Warna isi teks (#RRGGBB)" />
+                                            <TextBlock Grid.Column="3" Text="Stroke" VerticalAlignment="Center"
+                                                       Foreground="#8A939E" FontSize="12" Margin="8,0,0,0" />
+                                            <TextBox Grid.Column="4" Text="{Binding StrokeHex}" Margin="6,0,0,0"
+                                                     ToolTip.Tip="Warna garis tepi teks (#RRGGBB)" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <TextBlock Text="Lebar stroke" VerticalAlignment="Center"
+                                                       Foreground="#8A939E" FontSize="12" />
+                                            <NumericUpDown Grid.Column="1" Value="{Binding StrokeWidthValue}"
+                                                           Minimum="0" Maximum="40" Increment="0.5"
+                                                           FormatString="F1" Margin="8,0,0,0"
+                                                           ToolTip.Tip="0 = tanpa garis tepi" />
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Classes="section" Text="TATA LETAK" />
+                                        <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto">
+                                            <ToggleButton Content="Kiri" IsChecked="{Binding AlignLeft}" />
+                                            <ToggleButton Grid.Column="1" Content="Tengah" IsChecked="{Binding AlignCenter}"
+                                                          Margin="4,0" />
+                                            <ToggleButton Grid.Column="2" Content="Kanan" IsChecked="{Binding AlignRight}" />
+                                            <ToggleButton Grid.Column="4" Content="Vertikal"
+                                                          IsChecked="{Binding Vertical}"
+                                                          ToolTip.Tip="Tulis vertikal gaya CJK: karakter ditumpuk per kolom, kolom kanan → kiri" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="Auto,*,Auto,*">
+                                            <TextBlock Text="Spasi baris" VerticalAlignment="Center"
+                                                       Foreground="#8A939E" FontSize="12" />
+                                            <NumericUpDown Grid.Column="1" Value="{Binding LineSpacingValue}"
+                                                           Minimum="0.6" Maximum="3" Increment="0.05"
+                                                           FormatString="F2" Margin="6,0" />
+                                            <TextBlock Grid.Column="2" Text="Spasi huruf" VerticalAlignment="Center"
+                                                       Foreground="#8A939E" FontSize="12" />
+                                            <NumericUpDown Grid.Column="3" Value="{Binding LetterSpacingValue}"
+                                                           Minimum="-2" Maximum="40" Increment="0.5"
+                                                           FormatString="F1" Margin="6,0,0,0" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <TextBlock Text="Rotasi" VerticalAlignment="Center"
+                                                       Foreground="#8A939E" FontSize="12" />
+                                            <ComboBox Grid.Column="1" Margin="6,0,0,0" Width="90"
+                                                      ItemsSource="{Binding RotationOptions}"
+                                                      SelectedItem="{Binding RotationValue}" />
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Classes="section" Text="POSISI &amp; UKURAN KOTAK" />
+                                        <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto,Auto">
+                                            <TextBlock Text="Geser X" VerticalAlignment="Center"
+                                                       Foreground="#8A939E" FontSize="12" />
+                                            <NumericUpDown Grid.Column="1" Value="{Binding DxValue}"
+                                                           Increment="1" Margin="6,0" />
+                                            <TextBlock Grid.Column="2" Text="Geser Y" VerticalAlignment="Center"
+                                                       Foreground="#8A939E" FontSize="12" />
+                                            <NumericUpDown Grid.Column="3" Value="{Binding DyValue}"
+                                                           Increment="1" Margin="6,0,0,0" />
+                                            <TextBlock Grid.Row="1" Text="Δ Lebar" VerticalAlignment="Center"
+                                                       Foreground="#8A939E" FontSize="12" Margin="0,6,0,0" />
+                                            <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding DwValue}"
+                                                           Increment="1" Margin="6,6,6,0" />
+                                            <TextBlock Grid.Row="1" Grid.Column="2" Text="Δ Tinggi" VerticalAlignment="Center"
+                                                       Foreground="#8A939E" FontSize="12" Margin="0,6,0,0" />
+                                            <NumericUpDown Grid.Row="1" Grid.Column="3" Value="{Binding DhValue}"
+                                                           Increment="1" Margin="6,6,0,0" />
+                                        </Grid>
+                                        <TextBlock Text="{Binding RenderBoxText}" Foreground="#8A939E"
+                                                   FontSize="11" />
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Classes="section" Text="PRESET" />
+                                        <WrapPanel>
+                                            <Button Classes="tool" Content="Dialog" Margin="0,0,4,4"
+                                                    Command="{Binding PresetDialogCommand}" />
+                                            <Button Classes="tool" Content="Teriak" Margin="0,0,4,4"
+                                                    Command="{Binding PresetTeriakCommand}" />
+                                            <Button Classes="tool" Content="Bisik" Margin="0,0,4,4"
+                                                    Command="{Binding PresetBisikCommand}" />
+                                            <Button Classes="tool" Content="Narasi" Margin="0,0,4,4"
+                                                    Command="{Binding PresetNarasiCommand}" />
+                                        </WrapPanel>
+                                        <TextBlock Text="Preset mengganti seluruh gaya blok terpilih (nama preset tercatat di blok)."
+                                                   Foreground="#8A939E" FontSize="11" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ContentControl.ContentTemplate>
+                    </ContentControl>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </DockPanel>
+</UserControl>

@@ -342,3 +342,85 @@
     di antara jalan); (4) poles menyimpan cadangan hanya satu
     tingkat; (5) CBR & AVIF: batas Tahap 1 yang sama.
     Berikutnya: Tahap 5 — Editor typesetting.
+- 2026-10-27 ~05:3x–07:0x PDT: **Tahap 5 (v0.5.0) SELESAI &
+  terverifikasi independen.** Typesetting: teks terjemahan
+  DIGAMBAR ke halaman bersih di dalam kotak bloknya → halaman
+  final yang bisa dibaca (dasar render = gambar bersih Tahap 3
+  via CleanStore, atau halaman asli bila belum dibersihkan).
+  - Model: proyek skema **v5** — tiap blok + `TypesetStyle`
+    (null = belum di-typeset): FontFamily (font SISTEM saja,
+    tanpa font tertanam berlisensi), FontSize (0 = otomatis),
+    Bold, Italic, ColorHex, StrokeHex, StrokeWidth, Align
+    (Left/Center/Right), LineSpacing, LetterSpacing, Vertical,
+    Rotation (0/90/180/270), geometri Dx/Dy/Dw/Dh, PresetName.
+    Berkas v1–v4 tetap termuat (teruji literal v4: Typeset null).
+  - Mesin render `Services/Typeset.cs` (SkiaSharp): bungkus kata
+    per baris (kata terlalu lebar dipecah per karakter); lebar
+    diukur per glif + LetterSpacing; **pas-otomatis** = pencarian
+    biner ukuran terbesar yang muat di kotak render (FontSize>0
+    dipakai apa adanya, boleh meluber sesuai paksaan pengguna);
+    gambar per glif: stroke (Round join) dulu lalu Fill; vertikal
+    gaya CJK = karakter ditumpuk per kolom, kolom kanan → kiri;
+    rotasi via transform kanvas di pusat kotak; konten terpusat
+    vertikal. Blok tanpa terjemahan dilewati; blok tanpa Typeset
+    eksplisit memakai bawaan (sans aman, otomatis, tengah, hitam).
+    Render non-destruktif (bitmap dasar tak berubah — teruji hash).
+  - Preset bawaan (kumpulan properti, bukan berkas font): Dialog,
+    Teriak (bold + stroke putih 3), Bisik (italic #444444),
+    Narasi (italic). `AutoTypesetPage/Chapter` mengisi preset
+    Dialog ke blok berterjemahan yang belum punya Typeset saja.
+  - UI halaman **Typesetting** (menu aktif, footer "v0.5.0 —
+    Typesetting"): toolbar "Terapkan Otomatis Halaman Ini / Satu
+    Bab" + toggle Asli/Bersih + chevron X/Y; kiri daftar halaman;
+    tengah kanvas FINAL (bingkai teal per blok, terpilih tebal +
+    lencana #n); kanan panel properti seksi kapital kecil (TEKS
+    TERJEMAHAN, FONT + ukuran otomatis + B/I, WARNA & GARIS TEPI,
+    TATA LETAK + Vertikal + Rotasi, POSISI & UKURAN KOTAK,
+    PRESET). Klik kanvas = hit-test kotak render; **seret =
+    pindah blok** (pratinjau bingkai; Dx/Dy disimpan saat lepas).
+    Semua perubahan langsung tergambar ulang & tersimpan.
+    Bug ditemukan saat pengecekan screenshot pertama: tombol
+    "Tengah"/"Kanan" di baris perataan kehilangan Grid.Column
+    sehingga menumpuk di kolom 0 — DIPERBAIKI di tahap ini juga
+    dan screenshot ulang membuktikan Kiri/Tengah(aktif)/Kanan
+    tampil benar.
+  - CLI `--render <bab> [--out <folder>]`: halaman bersih +
+    typeset tersimpan (bawaan diterapkan dulu ke yang belum) →
+    PNG per halaman + ringkasan; teruji ujung-ke-ujung pada CBZ
+    fixture OCR asli (blok berterjemahan ber-ink di kotaknya,
+    typeset otomatis tersimpan ke proyek).
+  - Tes: **64 total — 63 lolos, 0 gagal, 1 skip** (skip lama
+    bersyarat sandbox: CLI terjemahan loopback; 53 tes lama =
+    52 lolos + 1 skip, TANPA regresi) — 11 tes baru TypesetTests
+    semua lolos: render "Halo!" densitas tinta di kotak
+    0→>0,02 & 0 piksel berubah di luar kotak+margin 3 & hash
+    dasar utuh; auto-fit teks panjang tetap di dalam kotak
+    (0 piksel di luar); vertikal menghasilkan tinta jauh lebih
+    tinggi dari lebar; stroke merah >40 piksel hadir; Dx=80
+    menggeser pusat massa tinta 80±8 px; preset Teriak tercatat
+    bold+stroke & tergambar; auto-typeset hanya mengisi yang
+    berterjemahan & belum punya gaya; round-trip v5 identik
+    termasuk hash render; muat v4; CLI --render pada fixture.
+    (tmp/xunit-results-v05.xml; satu jalan menengah sempat
+    menggagalkan 1 tes lama Tahap 4 yang sensitif waktu
+    (tunggu-pulih Retry-After) di bawah beban CPU penuh —
+    terkonfirmasi flake: lolos 3/3 sendirian dan suite penuh
+    hijau lagi di jalan ulang pada kode final; jalur
+    terjemahan tidak diubah tahap ini.) Build Release bersih 0/0.
+    Publish win-x64 single-file: **TintaStudio.exe 124.633.681
+    byte** (PE32+ GUI; v0.4.0: 124.547.665). Bukti visual:
+    tmp/tinta-v05-ui.png (kanvas final "Halo!"/"Terima kasih!"
+    ter-render di bubble bersih + panel properti) dan
+    tmp/render-demo/page-001.png (keluaran --render).
+  - **Di luar cakupan (jujur)**: editor poligon bubble vektor
+    ala referensi DITUNDA — detektor menghasilkan kotak teks
+    persegi, bukan poligon bubble; penyesuaian bentuk lewat
+    geometri kotak (Dx/Dy/Dw/Dh) dulu (FEATURE-MAP diperbarui).
+  - Batas jujur: (1) kualitas visual pada manga ASLI belum
+    diukur — semua bukti di fixture sintetis bersih; kotak OCR
+    yang sempit membuat kata panjang dipecah per karakter oleh
+    auto-fit (pengguna bisa melebarkan kotak via Δ Lebar/seret);
+    (2) font yang tersedia mengikuti sistem pengguna (di VM:
+    DejaVu; di Windows: font terpasang pengguna); (3) CBR & AVIF:
+    batas Tahap 1 yang sama. Berikutnya: Tahap 6 — Ekspor
+    (CBZ/PDF/folder dari halaman final) + packaging akhir.

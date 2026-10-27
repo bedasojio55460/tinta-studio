@@ -45,6 +45,16 @@ internal static class Program
             Environment.ExitCode = RunTranslate(args);
             return;
         }
+        // Mode CLI: --render <berkas/folder komik> [--out <folder>] —
+        // hasil akhir per halaman: halaman bersih (operasi Tahap 3,
+        // atau asli bila belum dibersihkan) + teks ter-typeset
+        // digambar; typeset bawaan diterapkan dulu ke blok
+        // berterjemahan yang belum di-typeset, lalu disimpan.
+        if (args.Length >= 2 && args[0] == "--render")
+        {
+            Environment.ExitCode = RunRender(args);
+            return;
+        }
         // Mode CLI: --download-models — unduh semua model katalog.
         if (args.Length >= 1 && args[0] == "--download-models")
         {
@@ -62,6 +72,8 @@ internal static class Program
             Console.WriteLine("                                           bersihkan bubble, tulis gambar bersih");
             Console.WriteLine("  TintaStudio --translate <path> [--provider gemini|groq|openrouter|ollama|lmstudio] [--target id|en]");
             Console.WriteLine("                                           terjemahkan blok OCR (key dari Pengaturan aplikasi)");
+            Console.WriteLine("  TintaStudio --render <path> [--out <folder>]");
+            Console.WriteLine("                                           gambar halaman final (bersih + typeset) ke folder");
             Console.WriteLine("  TintaStudio --download-models            unduh model deteksi/OCR/inpaint ke cache");
             return;
         }
@@ -429,6 +441,94 @@ internal static class Program
                 $"{summary.Failed} gagal, {summary.Skipped} dilewati (sudah ada " +
                 $"terjemahan), {summary.PagesProcessed} halaman.");
             return summary.Failed > 0 && summary.Translated == 0 ? 1 : 0;
+        }
+        catch (ModelMissingException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 3;
+        }
+        catch (ComicImportException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            if (Environment.GetEnvironmentVariable("TINTA_DEBUG") == "1")
+                Console.Error.WriteLine(ex.ToString());
+            return 1;
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(workDir)) Directory.Delete(workDir, recursive: true);
+            }
+            catch (Exception)
+            {
+                // berkas sementara gagal dihapus bukan masalah besar
+            }
+        }
+    }
+
+    private static int RunRender(string[] args)
+    {
+        string path = args[1];
+        string? outDir = null;
+        for (int i = 2; i + 1 < args.Length; i++)
+        {
+            if (args[i] == "--out")
+                outDir = args[i + 1];
+        }
+        outDir ??= Path.Combine(Directory.GetCurrentDirectory(), "tinta-final");
+        var workDir = Path.Combine(
+            Path.GetTempPath(), "tinta-studio-render-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var chapter = ComicImport.OpenChapter(path, workDir);
+            var (project, projectChapter) = ProjectStore.GetOrCreate(chapter);
+
+            // Proyek belum punya blok sama sekali → deteksi+OCR dulu
+            // (bahasa ja) agar render berdiri sendiri seperti --clean.
+            if (projectChapter.Pages.Sum(p => p.Blocks.Count) == 0)
+            {
+                using var pipeline = new DetectOcrPipeline();
+                var progress = new Progress<(int Done, int Total)>(p =>
+                    Console.Error.WriteLine($"  deteksi halaman {p.Done}/{p.Total}…"));
+                pipeline.AnalyzeChapterAsync(
+                    chapter, projectChapter, OcrLanguage.Japanese, progress,
+                    CancellationToken.None).GetAwaiter().GetResult();
+            }
+
+            int autoApplied = TypesetService.AutoTypesetChapter(projectChapter);
+            ProjectStore.Save(project, chapter.SourcePath);
+
+            using var clean = new CleanService();
+            Directory.CreateDirectory(outDir);
+            int totalTypeset = 0;
+            for (int i = 0; i < chapter.Pages.Count; i++)
+            {
+                var page = projectChapter.PageAt(i);
+                int drawn = page.Blocks.Count(
+                    b => !string.IsNullOrWhiteSpace(b.Translation));
+                string outFile = Path.Combine(outDir, $"page-{i + 1:D3}.png");
+                using var final = TypesetService.BuildFinalPageBitmap(
+                    chapter, projectChapter, page, clean, CancellationToken.None);
+                using (var img = SkiaSharp.SKImage.FromBitmap(final))
+                using (var data = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100))
+                using (var fs = File.Create(outFile))
+                    data.SaveTo(fs);
+                totalTypeset += drawn;
+                Console.WriteLine(
+                    $"Halaman {i + 1}: {drawn} blok digambar " +
+                    $"({page.CleanOps.Count} operasi bersih) → {outFile}");
+            }
+            Console.WriteLine(
+                $"Render selesai: {chapter.Title} — {totalTypeset} blok " +
+                $"tergambar, {autoApplied} blok baru di-typeset otomatis, " +
+                $"keluaran di {outDir}");
+            return 0;
         }
         catch (ModelMissingException ex)
         {

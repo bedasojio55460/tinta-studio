@@ -592,6 +592,7 @@ public sealed partial class MainWindowViewModel
         IsLibraryActive = false;
         IsDetectActive = false;
         IsCleanActive = false;
+        IsTypesetActive = false;
         IsTranslateActive = true;
         Raise(nameof(ProviderStatusText));
         LoadTranslateForCurrentPage();
