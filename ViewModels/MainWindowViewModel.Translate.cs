@@ -221,6 +221,7 @@ public sealed partial class MainWindowViewModel
         Raise(nameof(SelectedProvider));
         Raise(nameof(SelectedTargetLanguage));
         Raise(nameof(ProviderStatusText));
+        Raise(nameof(SelectedLineProtectOption));
     }
 
     private TranslateOptions CurrentTranslateOptions() => new(

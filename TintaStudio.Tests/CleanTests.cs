@@ -389,6 +389,164 @@ public sealed class CleanTests
         Assert.True(alpha[136 * 220 + 152] > 0f);
     }
 
+    /// <summary>
+    /// Fixture v0.7.6: bubble seperti tes v0.7.5 (garis tepi hitam
+    /// 3 px, kolom teks lepas ±6 px dari garis) DITAMBAH dua glif
+    /// yang MENYATU fisik dengan garis tepi kanan (persegi tinta
+    /// x 413..437 menempel ke pita garis x 437..440, y 420..452
+    /// dan 472..504). Wilayah ukur glif menyatu: x 413..437,
+    /// y 420..504.
+    /// </summary>
+    private static (SKBitmap Page, TextBlock Block) FusedGlyphFixture()
+    {
+        const int W = 500, H = 700;
+        var page = new SKBitmap(W, H);
+        using (var canvas = new SKCanvas(page))
+        {
+            canvas.Clear(SKColors.White);
+            using var black = new SKPaint
+            { Color = SKColors.Black, Style = SKPaintStyle.Fill };
+            using var white = new SKPaint
+            { Color = SKColors.White, Style = SKPaintStyle.Fill };
+            canvas.DrawRect(new SKRect(60, 60, 440, 640), black);
+            canvas.DrawRect(new SKRect(63, 63, 437, 637), white);
+            // Kolom teks lepas dekat garis (seperti v0.7.5).
+            for (int i = 0; i < 5; i++)
+                canvas.DrawRect(new SKRect(407, 130 + i * 52, 431, 162 + i * 52), black);
+            // Glif menyatu dengan garis tepi kanan.
+            canvas.DrawRect(new SKRect(413, 420, 437, 452), black);
+            canvas.DrawRect(new SKRect(413, 472, 437, 504), black);
+        }
+        var block = new TextBlock
+        {
+            X = 372, Y = 100, Width = 118, Height = 420,
+            Text = "テスト", Language = "ja",
+        };
+        return (page, block);
+    }
+
+    private static readonly SKRectI FusedArea = new(413, 420, 437, 504);
+    private static readonly SKRectI BorderBandArea = new(437, 140, 440, 500);
+
+    [SkippableFact]
+    public void Inpaint_LineProtectOn_KeepsBorderAndFusedGlyphRemnant()
+    {
+        Skip.If(!ModelStore.InpaintReady,
+            "Model inpaint belum diunduh: inpaint-lama.onnx");
+        var (page, block) = FusedGlyphFixture();
+        using (page)
+        {
+            string hashBefore = CleanService.PngHash(page);
+            double borderBefore = InkDensity(page, BorderBandArea);
+            double fusedBefore = InkDensity(page, FusedArea);
+            _out.WriteLine($"sebelum: garis {borderBefore:F3}, glif menyatu {fusedBefore:F3}");
+            Assert.Equal(1.0, borderBefore);
+            Assert.True(fusedBefore > 0.5, "Fixture glif menyatu harus bertinta pekat.");
+
+            var projPage = PageWith(block);
+            var op = CleanService.SetBlockOperation(
+                projPage, block, CleanMode.Inpaint, null);
+            Assert.True(op.LineProtect, "Bawaan SetBlockOperation harus jaga garis.");
+
+            using var clean = new CleanService();
+            using var cleaned = clean.BuildCleanedPage(page, projPage);
+            double borderAfter = InkDensity(cleaned, BorderBandArea);
+            double fusedAfter = InkDensity(cleaned, FusedArea);
+            _out.WriteLine($"ON: garis {borderAfter:F3}, glif menyatu {fusedAfter:F3}");
+            Assert.True(borderAfter >= borderBefore * 0.95,
+                $"Garis tepi harus utuh ≥95% (sebelum {borderBefore:F3}, sesudah {borderAfter:F3}).");
+            Assert.True(fusedAfter >= fusedBefore * 0.5,
+                $"Sisa glif nempel harus masih terdeteksi jelas (sebelum {fusedBefore:F3}, sesudah {fusedAfter:F3}).");
+            Assert.Equal(hashBefore, CleanService.PngHash(page));
+        }
+    }
+
+    [SkippableFact]
+    public void Inpaint_LineProtectOff_RemovesFusedGlyph()
+    {
+        Skip.If(!ModelStore.InpaintReady,
+            "Model inpaint belum diunduh: inpaint-lama.onnx");
+        var (page, block) = FusedGlyphFixture();
+        using (page)
+        {
+            string hashBefore = CleanService.PngHash(page);
+            double fusedBefore = InkDensity(page, FusedArea);
+            Assert.True(fusedBefore > 0.5, "Fixture glif menyatu harus bertinta pekat.");
+
+            var projPage = PageWith(block);
+            var op = CleanService.SetBlockOperation(
+                projPage, block, CleanMode.Inpaint, null, lineProtect: false);
+            Assert.False(op.LineProtect);
+
+            using var clean = new CleanService();
+            using var cleaned = clean.BuildCleanedPage(page, projPage);
+            double fusedAfter = InkDensity(cleaned, FusedArea);
+            _out.WriteLine($"OFF: glif menyatu {fusedBefore:F3} → {fusedAfter:F3}");
+            Assert.True(fusedAfter <= fusedBefore * 0.10,
+                $"Tinta glif nempel harus hilang ≥90% tanpa perlindungan " +
+                $"(sebelum {fusedBefore:F3}, sesudah {fusedAfter:F3}).");
+            // Garis tepi BOLEH putus pada mode ini — tidak diasersikan.
+            Assert.Equal(hashBefore, CleanService.PngHash(page));
+        }
+    }
+
+    [Fact]
+    public void Project_LoadsV5File_WithoutLineProtect_DefaultsOn_AndRoundTripsOff()
+    {
+        var dir = Path.Combine(Path.GetTempPath(),
+            "tinta-clean-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            // Berkas gaya v5: cleanOps tanpa bidang lineProtect.
+            var path = Path.Combine(dir, "v5.tinta.json");
+            File.WriteAllText(path, """
+                {
+                  "format": "tinta-studio-project",
+                  "version": 5,
+                  "name": "Proyek v5",
+                  "chapters": [
+                    { "sourcePath": "/tmp/bab.cbz", "title": "Bab",
+                      "format": "ZIP (CBZ)", "pageCount": 1,
+                      "pages": [
+                        { "index": 0, "blocks": [
+                          { "id": "abc", "x": 1, "y": 2, "width": 30,
+                            "height": 40, "direction": "horizontal",
+                            "language": "ja", "text": "x",
+                            "confidence": 0.5, "detectionScore": 0.6 }
+                        ],
+                        "cleanOps": [
+                          { "blockId": "abc", "mode": "inpaint",
+                            "fillColor": null, "seq": 1,
+                            "appliedUtc": "2026-10-27T00:00:00Z" }
+                        ] }
+                      ] }
+                  ]
+                }
+                """);
+            var loaded = TintaProject.Load(path);
+            Assert.Equal(5, loaded.Version);
+            var op = Assert.Single(loaded.Chapters[0].Pages[0].CleanOps);
+            Assert.Equal(CleanMode.Inpaint, op.Mode);
+            Assert.True(op.LineProtect,
+                "Op lama tanpa bidang lineProtect harus diperlakukan jaga garis (ON).");
+
+            // Putaran simpan/muat pilihan OFF harus bertahan.
+            op.LineProtect = false;
+            var path2 = Path.Combine(dir, "v6.tinta.json");
+            loaded.Save(path2);
+            Assert.Contains("\"lineProtect\": false", File.ReadAllText(path2));
+            var reloaded = TintaProject.Load(path2);
+            Assert.Equal(5, reloaded.Version);
+            Assert.False(Assert.Single(
+                reloaded.Chapters[0].Pages[0].CleanOps).LineProtect);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
     [SkippableFact]
     public void Inpaint_ProtectsBubbleOutlineNearTextColumn()
     {

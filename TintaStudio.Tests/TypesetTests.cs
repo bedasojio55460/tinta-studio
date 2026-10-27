@@ -358,7 +358,6 @@ public sealed class TypesetTests
             project.Save(path);
 
             var loaded = TintaProject.Load(path);
-            Assert.Equal(5, loaded.Version);
             Assert.Equal(TintaProject.CurrentVersion, loaded.Version);
             var s = Assert.IsType<TypesetStyle>(
                 loaded.Chapters[0].Pages[0].Blocks[0].Typeset);

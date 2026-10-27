@@ -33,7 +33,8 @@ internal static class Program
             return;
         }
         // Mode CLI: --clean <berkas/folder komik> [--mode solid|inpaint]
-        // [--out <folder>] [--lang ja|ko|ch] — bersihkan bubble semua
+        // [--line-protect on|off] [--out <folder>] [--lang ja|ko|ch]
+        // — bersihkan bubble semua
         // halaman (deteksi dulu bila proyek belum punya blok), tulis
         // gambar bersih ke folder keluar; operasi tersimpan di proyek.
         if (args.Length >= 2 && args[0] == "--clean")
@@ -83,8 +84,9 @@ internal static class Program
             Console.WriteLine("  TintaStudio                              buka antarmuka grafis");
             Console.WriteLine("  TintaStudio --info <path>                tampilkan info bab komik (format, halaman)");
             Console.WriteLine("  TintaStudio --ocr <path> [--lang ja|ko|ch]  deteksi + OCR, simpan ke proyek");
-            Console.WriteLine("  TintaStudio --clean <path> [--mode solid|inpaint] [--out <folder>] [--lang ja|ko|ch]");
+            Console.WriteLine("  TintaStudio --clean <path> [--mode solid|inpaint] [--line-protect on|off] [--out <folder>] [--lang ja|ko|ch]");
             Console.WriteLine("                                           bersihkan bubble, tulis gambar bersih");
+            Console.WriteLine("                                           (line-protect: on = jaga garis tepi (bawaan), off = hapus tuntas)");
             Console.WriteLine("  TintaStudio --translate <path> [--provider gemini|groq|openrouter|ollama|lmstudio] [--target id|en]");
             Console.WriteLine("                                           terjemahkan blok OCR (key dari Pengaturan aplikasi)");
             Console.WriteLine("  TintaStudio --render <path> [--out <folder>]");
@@ -226,6 +228,7 @@ internal static class Program
     {
         string path = args[1];
         var mode = Models.CleanMode.Solid;
+        bool lineProtect = true;
         var lang = Services.OcrLanguage.Japanese;
         string? outDir = null;
         for (int i = 2; i + 1 < args.Length; i++)
@@ -239,6 +242,15 @@ internal static class Program
                         "inpaint" => Models.CleanMode.Inpaint,
                         var other => throw new ArgumentException(
                             $"Mode tidak dikenal: '{other}' (pakai solid|inpaint)."),
+                    };
+                    break;
+                case "--line-protect":
+                    lineProtect = args[i + 1] switch
+                    {
+                        "on" => true,
+                        "off" => false,
+                        var other => throw new ArgumentException(
+                            $"Nilai --line-protect tidak dikenal: '{other}' (pakai on|off)."),
                     };
                     break;
                 case "--lang":
@@ -289,7 +301,8 @@ internal static class Program
             {
                 var page = projectChapter.PageAt(i);
                 foreach (var block in page.Blocks)
-                    CleanService.SetBlockOperation(page, block, mode, fillColor: null);
+                    CleanService.SetBlockOperation(page, block, mode, fillColor: null,
+                        lineProtect);
                 var info = chapter.Pages[i];
                 string outFile = Path.Combine(outDir, $"page-{i + 1:D3}.png");
                 if (page.Blocks.Count == 0)
@@ -316,7 +329,9 @@ internal static class Program
             ProjectStore.Save(project, chapter.SourcePath);
             Console.WriteLine(
                 $"Bersih selesai: {chapter.Title} — {totalCleaned} blok, " +
-                $"mode {mode.ToString().ToLowerInvariant()}, keluaran di {outDir}");
+                $"mode {mode.ToString().ToLowerInvariant()}, " +
+                $"garis tepi: {(lineProtect ? "dijaga (--line-protect on)" : "hapus tuntas (--line-protect off)")}, " +
+                $"keluaran di {outDir}");
             return 0;
         }
         catch (ModelMissingException ex)

@@ -27,6 +27,7 @@ public sealed class CleanBlockItemViewModel : ViewModelBase
     private CleanMode _mode = CleanMode.Solid;
     private bool _isCleaned;
     private CleanMode? _appliedMode;
+    private bool _appliedLineProtect = true;
 
     public CleanBlockItemViewModel(TextBlock block, int number, MainWindowViewModel owner)
     {
@@ -59,7 +60,9 @@ public sealed class CleanBlockItemViewModel : ViewModelBase
     }
 
     public string StatusText => _appliedMode is { } m
-        ? $"Sudah dibersihkan — {m}"
+        ? $"Sudah dibersihkan — {m}" + (m == CleanMode.Inpaint
+            ? _appliedLineProtect ? " • garis dijaga" : " • hapus tuntas"
+            : "")
         : "Belum dibersihkan";
 
     public RelayCommand ApplyCommand { get; }
@@ -68,6 +71,7 @@ public sealed class CleanBlockItemViewModel : ViewModelBase
     {
         var op = page.CleanOps.FirstOrDefault(o => o.BlockId == Block.Id);
         _appliedMode = op?.Mode;
+        _appliedLineProtect = op?.LineProtect ?? true;
         if (op is not null)
             Mode = op.Mode;
         IsCleaned = op is not null;
@@ -164,6 +168,38 @@ public sealed partial class MainWindowViewModel
         get => _selectedCleanMode;
         set => Set(ref _selectedCleanMode, value);
     }
+
+    /// <summary>Label opsi perlindungan garis tepi (inpaint).</summary>
+    public const string LineProtectOnLabel = "Jaga garis (huruf nempel bisa tertinggal)";
+    public const string LineProtectOffLabel = "Hapus tuntas (garis bisa terpotong)";
+
+    public IReadOnlyList<string> LineProtectOptions { get; } =
+        new[] { LineProtectOnLabel, LineProtectOffLabel };
+
+    /// <summary>Pilihan "Garis tepi" untuk operasi bersih berikutnya:
+    /// tersimpan di pengaturan aplikasi, dicatat per operasi, dan
+    /// dipakai semua tombol bersihkan (blok/halaman/bab). Hanya
+    /// bermakna untuk mode Inpaint.</summary>
+    public string SelectedLineProtectOption
+    {
+        get => _appSettings.EffectiveCleanLineProtect
+            ? LineProtectOnLabel : LineProtectOffLabel;
+        set
+        {
+            if (value is null)
+                return;
+            bool on = value != LineProtectOffLabel;
+            if (_appSettings.EffectiveCleanLineProtect != on)
+            {
+                _appSettings.CleanLineProtect = on;
+                AppConfig.SaveSettings(_appSettings);
+                Raise();
+            }
+        }
+    }
+
+    /// <summary>Pilihan garis tepi saat ini sebagai bool.</summary>
+    public bool CurrentLineProtect => _appSettings.EffectiveCleanLineProtect;
 
     /// <summary>Warna isi Solid otomatis (sampel bubble) vs manual.</summary>
     public bool UseAutoFill
@@ -319,7 +355,8 @@ public sealed partial class MainWindowViewModel
             Raise(nameof(InpaintModelStatus));
             return;
         }
-        CleanService.SetBlockOperation(page, item.Block, item.Mode, FillChoice());
+        CleanService.SetBlockOperation(page, item.Block, item.Mode, FillChoice(),
+            CurrentLineProtect);
         SaveProject();
         RefreshCleanStateForCurrentPage();
         StatusText = $"Blok #{item.Number} dibersihkan ({item.Mode}).";
@@ -340,7 +377,8 @@ public sealed partial class MainWindowViewModel
         if (!EnsureCleanReady())
             return;
         foreach (var block in page.Blocks)
-            CleanService.SetBlockOperation(page, block, SelectedCleanMode, FillChoice());
+            CleanService.SetBlockOperation(page, block, SelectedCleanMode, FillChoice(),
+                CurrentLineProtect);
         SaveProject();
         await RebuildCurrentPageCleanAsync(
             $"Membersihkan halaman {SelectedPageIndex + 1} ({SelectedCleanMode})…");
@@ -367,7 +405,8 @@ public sealed partial class MainWindowViewModel
                 ct.ThrowIfCancellationRequested();
                 var page = projectChapter.PageAt(i);
                 foreach (var block in page.Blocks)
-                    CleanService.SetBlockOperation(page, block, SelectedCleanMode, FillChoice());
+                    CleanService.SetBlockOperation(page, block, SelectedCleanMode, FillChoice(),
+                        CurrentLineProtect);
             }
             SaveProject();
             var progress = new Progress<string>(s =>

@@ -76,7 +76,7 @@ public sealed class CleanService : IDisposable
             else
             {
                 progress?.Report($"Inpaint blok di ({block.X},{block.Y})…");
-                InpaintBlock(result, block, ct);
+                InpaintBlock(result, block, ct, op.LineProtect);
             }
         }
         return result;
@@ -137,13 +137,20 @@ public sealed class CleanService : IDisposable
     /// <summary>
     /// Inpaint satu blok pada bitmap target (diubah di tempat):
     /// potong blok+margin, mask tinta dari dalam kotak blok, jalankan
-    /// LaMA, tempel balik hanya di area mask bertepi lembut. Komponen
+    /// LaMA, tempel balik hanya di area mask bertepi lembut. Bila
+    /// <paramref name="lineProtect"/> menyala (bawaan), komponen
     /// tinta yang menyentuh tepi potongan atau melintasi batas kotak
     /// blok (garis tepi bubble / karya garis) DILINDUNGI — tidak
     /// masuk mask dan alfanya dipaksa 0 — supaya garis tepi yang
-    /// duduk dekat kolom teks tidak ikut terhapus (v0.7.5).
+    /// duduk dekat kolom teks tidak ikut terhapus (v0.7.5); huruf
+    /// yang menyatu fisik dengan garis ikut terlindungi dan bisa
+    /// tertinggal. Bila mati (v0.7.6), tidak ada perlindungan sama
+    /// sekali: semua tinta di dalam kotak dihapus tuntas dan garis
+    /// tepi bisa terpotong — pilihan per operasi (CleanOperation.
+    /// LineProtect), supaya pengguna memilih hasil terbaik per kasus.
     /// </summary>
-    public void InpaintBlock(SKBitmap target, TextBlock block, CancellationToken ct = default)
+    public void InpaintBlock(SKBitmap target, TextBlock block,
+        CancellationToken ct = default, bool lineProtect = true)
     {
         var blockRect = ClampRect(target, block);
         if (blockRect.Width <= 0 || blockRect.Height <= 0)
@@ -170,7 +177,12 @@ public sealed class CleanService : IDisposable
             blockRect.Right - cropRect.Left, blockRect.Bottom - cropRect.Top);
         // Peta perlindungan garis dihitung sekali dari potongan,
         // dipakai mask (sebelum dilasi) dan alfa (sesudah feather).
-        var protect = InkMask.LineProtection(crop, blockInCrop, inset: 2);
+        // Mode hapus tuntas: peta serba-false seukuran potongan —
+        // InkMask memakai peta apa adanya (panjang cocok), jadi
+        // tidak ada piksel yang dilindungi di mask maupun alfa.
+        var protect = lineProtect
+            ? InkMask.LineProtection(crop, blockInCrop, inset: 2)
+            : new bool[cropRect.Width * cropRect.Height];
         using var mask = InkMask.Build(crop, blockInCrop, dilate: 3, inset: 2, protect);
         var alpha = InkMask.FeatherAlpha(mask, expand: 2, blur: 2, protect);
 
@@ -255,9 +267,12 @@ public sealed class CleanService : IDisposable
 
     // ─── Manajemen operasi (dipakai UI & CLI) ───────────────────────
 
-    /// <summary>Catat/ganti operasi bersih untuk satu blok.</summary>
+    /// <summary>Catat/ganti operasi bersih untuk satu blok.
+    /// <paramref name="lineProtect"/> hanya bermakna untuk mode
+    /// Inpaint (lihat CleanOperation.LineProtect).</summary>
     public static CleanOperation SetBlockOperation(
-        ProjectPage page, TextBlock block, CleanMode mode, string? fillColor)
+        ProjectPage page, TextBlock block, CleanMode mode, string? fillColor,
+        bool lineProtect = true)
     {
         var op = page.CleanOps.FirstOrDefault(o => o.BlockId == block.Id);
         if (op is null)
@@ -267,6 +282,7 @@ public sealed class CleanService : IDisposable
         }
         op.Mode = mode;
         op.FillColor = fillColor;
+        op.LineProtect = lineProtect;
         op.Seq = ++page.CleanSeq;
         op.AppliedUtc = DateTime.UtcNow;
         return op;
@@ -361,7 +377,8 @@ public static class CleanStore
         {
             var b = page.Blocks.FirstOrDefault(x => x.Id == op.BlockId);
             sb.Append("|op:").Append(op.BlockId).Append(':').Append(op.Mode)
-              .Append(':').Append(op.FillColor ?? "auto");
+              .Append(':').Append(op.FillColor ?? "auto")
+              .Append(':').Append(op.LineProtect ? "garis" : "tuntas");
             if (b is not null)
                 sb.Append(':').Append(b.X).Append(',').Append(b.Y)
                   .Append(',').Append(b.Width).Append(',').Append(b.Height);

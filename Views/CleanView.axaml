@@ -13,6 +13,11 @@
                 <StackPanel Orientation="Horizontal" Spacing="6">
                     <ComboBox ItemsSource="{Binding CleanModes}"
                               SelectedItem="{Binding SelectedCleanMode}" Width="110" />
+                    <TextBlock Text="Garis tepi:" VerticalAlignment="Center"
+                               Foreground="#8A939E" FontSize="12" Margin="4,0,0,0" />
+                    <ComboBox ItemsSource="{Binding LineProtectOptions}"
+                              SelectedItem="{Binding SelectedLineProtectOption}" Width="262"
+                              ToolTip.Tip="Khusus inpaint: jaga garis melindungi garis tepi bubble dari penghapusan; hapus tuntas membersihkan semua tinta di dalam kotak" />
                     <Button x:Name="CleanPageButton" Classes="primary" Content="Bersihkan Halaman Ini" />
                     <Button x:Name="CleanChapterButton" Content="Bersihkan Satu Bab" />
                     <Button x:Name="CancelCleanButton" Content="Batal"
@@ -153,7 +158,7 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                        <TextBlock Text="Mode Solid memakai warna sampel otomatis dari interior bubble, atau warna manual bila 'Sampel otomatis' dimatikan. Inpaint mengisi mengikuti latar (perlu model LaMA)."
+                        <TextBlock Text="Mode Solid memakai warna sampel otomatis dari interior bubble, atau warna manual bila 'Sampel otomatis' dimatikan. Inpaint mengisi mengikuti latar (perlu model LaMA). Opsi 'Garis tepi' berlaku untuk inpaint dan dicatat per blok: 'Jaga garis' melindungi garis tepi bubble (huruf yang menyatu dengan garis bisa tertinggal); 'Hapus tuntas' membersihkan semua tinta (garis bisa terpotong) — pilih yang terbaik per kasus."
                                    Foreground="#8A939E" FontSize="11" TextWrapping="Wrap" />
                     </StackPanel>
                 </StackPanel>

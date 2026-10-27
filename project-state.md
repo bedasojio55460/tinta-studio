@@ -871,3 +871,40 @@
   rambut/efek yang masuk bubble) juga terlindungi —
   memang itu tujuannya, tetapi teks yang menempel pada
   karya garis seperti itu bisa tertinggal.
+- 2026-10-27: **v0.7.6 — pilihan mode perlindungan garis
+  pada inpaint (permintaan Ando: pilih hasil terbaik per
+  kasus).** `CleanOperation.LineProtect` (bool, bawaan
+  true) dicatat per operasi; skema proyek naik ke **v6**
+  (berkas v1–v5 tetap termuat; op tanpa bidang ini = true
+  = perilaku v0.7.5). `CleanService.SetBlockOperation(...,
+  lineProtect)` meneruskan pilihan ke `InpaintBlock` dan
+  bangun-ulang menghormatinya; tanda tangan cache
+  CleanStore memuat pilihan ("garis"/"tuntas") supaya
+  pergantian mode tidak menelan cache lama. Mode OFF =
+  tanpa LineProtection sama sekali: InpaintBlock memakai
+  peta serba-false seukuran potongan (panjang cocok → dipakai
+  InkMask apa adanya, tidak ada piksel terlindungi di mask
+  maupun alfa). UI Bersihkan: pemilih "Garis tepi:" di
+  samping pemilih mode dengan label persis "Jaga garis
+  (huruf nempel bisa tertinggal)" / "Hapus tuntas (garis
+  bisa terpotong)"; pilihan tersimpan di settings.json
+  (AppSettings.CleanLineProtect nullable — false harus
+  benar-benar tertulis walau serializer WhenWritingDefault;
+  bawaan efektif true) dan status blok inpaint di daftar
+  menampilkan "• garis dijaga" / "• hapus tuntas". CLI:
+  `--clean --line-protect on|off` (bawaan on), tercetak di
+  ringkasan "garis tepi: dijaga/hapus tuntas". Tes: **96
+  total — 95 lolos, 0 gagal, 1 skip** (XML
+  tmp/xunit-results-v076.xml; baseline v0.7.5: 93/92/0/1;
+  skip loopback yang sama). 3 tes baru di CleanTests:
+  fixture huruf MENYATU garis tepi (LaMA asli) — ON: garis
+  ≥ 95% + sisa glif ≥ 50%; OFF: tinta glif nempel hilang
+  ≥ 90%; muat berkas gaya v5 tanpa lineProtect → ON +
+  round-trip OFF. Satu penyesuaian tes lama: literal `5`
+  hardcoded di TypesetTests.Project_RoundTripV5 diganti
+  CurrentVersion (konsekuensi naik skema; makna sama).
+  Publish win-x64 ulang: TintaStudio.exe 124.686.929 byte,
+  PE32+ GUI; footer v0.7.6 terverifikasi di exe + di
+  screenshot UI Bersihkan tmp/tinta-v076-ui.png (bab demo
+  terbuka, kontrol "Garis tepi:" tampil). Commit lokal,
+  tidak di-push.

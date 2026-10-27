@@ -11,6 +11,44 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.7.6 — Pilihan Mode Perlindungan Garis (Jaga Garis / Hapus Tuntas)
+
+Perlindungan garis v0.7.5 selalu aktif — garis tepi selamat,
+tetapi huruf yang menyatu fisik dengan garis ikut
+terlindungi dan tidak terhapus. Atas permintaan pengguna,
+sekarang ada PILIHAN per operasi bersih, supaya hasil
+terbaik bisa dipilih per kasus:
+
+- **Bidang baru `CleanOperation.LineProtect` (bool, bawaan
+  true)** dicatat di berkas proyek (skema naik ke **v6**;
+  berkas v1–v5 tetap termuat — op lama tanpa bidang ini
+  diperlakukan true = perilaku v0.7.5). Bangun-ulang halaman
+  bersih menghormati pilihan tiap op, dan tanda tangan cache
+  CleanStore memuat pilihan ini.
+- **UI halaman Bersihkan:** pemilih "Garis tepi:" di samping
+  pemilih mode — "Jaga garis (huruf nempel bisa tertinggal)"
+  / "Hapus tuntas (garis bisa terpotong)". Pilihan tersimpan
+  (pengaturan aplikasi), dipakai semua tombol bersihkan, dan
+  status tiap blok di daftar menampilkan "• garis dijaga"
+  atau "• hapus tuntas" untuk op inpaint.
+- **CLI:** `--clean` menerima `--line-protect on|off`
+  (bawaan on) dan nilainya tercetak di ringkasan hasil.
+- Mode "Hapus tuntas" = perilaku pra-v0.7.5 persis: tanpa
+  `LineProtection` sama sekali (peta perlindungan serba
+  false) — semua tinta di dalam kotak dihapus, garis bisa
+  terpotong.
+- **Tes: 96 total — 95 lolos, 0 gagal, 1 skip** (baseline
+  v0.7.5: 93/92/0/1; skip = loopback sandbox yang sama).
+  3 tes regresi baru dengan fixture huruf MENYATU garis
+  tepi + model LaMA asli: (a) protect ON → garis utuh
+  (≥ 95%) DAN sisa glif nempel masih terdeteksi (≥ 50%
+  densitas awal); (b) protect OFF → tinta glif nempel
+  hilang ≥ 90%; (c) berkas gaya v5 tanpa `lineProtect`
+  dimuat sebagai ON + putaran simpan/muat OFF bertahan.
+  Satu penyesuaian tes lama: literal versi hardcoded `5`
+  di tes round-trip typeset diganti `CurrentVersion`
+  (konsekuensi naik skema ke v6; asersi maknanya sama).
+
 ## Status: v0.7.5 — Perlindungan Garis Tepi pada Inpaint
 
 Cacat yang ditemukan verifikasi independen pada sampel asli

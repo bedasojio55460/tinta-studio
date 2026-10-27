@@ -19,9 +19,12 @@ public sealed class TintaProject
     /// v4 (Tahap 4): blok memuat hasil terjemahan + cap penyedia.
     /// v5 (Tahap 5): blok memuat gaya typeset (font, warna, stroke,
     /// perataan, geometri render) untuk digambar ke halaman bersih.
+    /// v6 (v0.7.6): operasi bersih memuat pilihan perlindungan garis
+    /// tepi untuk inpaint (LineProtect; berkas lama tanpa bidang ini
+    /// dimuat sebagai true = perilaku v0.7.5).
     /// CATATAN: API key TIDAK PERNAH disimpan di berkas proyek —
     /// key hanya hidup di ~/.config/tinta-studio/keys.json (0600).</summary>
-    public const int CurrentVersion = 5;
+    public const int CurrentVersion = 6;
 
     public string Format { get; set; } = FormatMarker;
     public int Version { get; set; } = CurrentVersion;
@@ -143,6 +146,17 @@ public sealed class CleanOperation
     /// <summary>Warna isi mode Solid dalam format "#RRGGBB";
     /// null = sampel otomatis dari dalam bubble.</summary>
     public string? FillColor { get; set; }
+
+    /// <summary>Pilihan perlindungan garis tepi untuk mode Inpaint
+    /// (v0.7.6): true = garis tepi bubble / karya garis yang
+    /// melintasi area blok dilindungi dari mask inpaint (perilaku
+    /// v0.7.5 — garis utuh, tetapi huruf yang menyatu fisik dengan
+    /// garis ikut terlindungi dan bisa tertinggal); false = tanpa
+    /// perlindungan sama sekali (semua tinta di dalam kotak
+    /// dihapus tuntas, garis tepi bisa terpotong). Diabaikan mode
+    /// Solid. Berkas v1–v5 tidak memuat bidang ini → nilai awal
+    /// true berlaku (perilaku v0.7.5).</summary>
+    public bool LineProtect { get; set; } = true;
 
     /// <summary>Nomor urut penerapan (dasar Urungkan).</summary>
     public int Seq { get; set; }

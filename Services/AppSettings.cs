@@ -30,6 +30,17 @@ public sealed class AppSettings
     /// Bawaan 2; 0 = tanpa jeda.</summary>
     public int RequestDelaySeconds { get; set; } = 2;
 
+    /// <summary>Pilihan "Garis tepi" terakhir di halaman Bersihkan
+    /// (v0.7.6): true = jaga garis, false = hapus tuntas. Nullable
+    /// supaya nilai false benar-benar tertulis (opsi serializer
+    /// WhenWritingDefault akan membuang bool false); null = belum
+    /// pernah dipilih → bawaan true lewat
+    /// <see cref="EffectiveCleanLineProtect"/>.</summary>
+    public bool? CleanLineProtect { get; set; }
+
+    /// <summary>Pilihan garis tepi efektif (bawaan true).</summary>
+    public bool EffectiveCleanLineProtect => CleanLineProtect ?? true;
+
     public Dictionary<string, ProviderSettings> Providers { get; set; } = new();
 
     /// <summary>Pengaturan penyedia ini; dibuat dengan nilai bawaan
