@@ -249,4 +249,119 @@ public sealed class SmartTypesetTests
         Assert.True(big > small);
         Assert.True(small >= 4);
     }
+
+    // ─── Regresi v0.7.1 ──────────────────────────────────────────
+
+    /// <summary>Regresi #1: pada halaman manga asli, jalur pintar
+    /// v0.7.0 menyimpan ukuran 26,5 / 22,5 yang MEMECAH kata
+    /// ("Reaksim/u", "Sakamoto-kun" + "?" yatim) — pencarian biner
+    /// menemukan ukuran bersih pada nilai pecahan (26,499…), lalu
+    /// pembulatan ke 0,1 melompat ke lebar glif ter-hint yang lebih
+    /// besar. Geometri di sini mereplikasi bubble aslinya (kotak
+    /// pintar ±107 px &amp; ±149 px). Invarian yang dijaga: pada
+    /// ukuran final yang TERSIMPAN, dengan typeface final blok,
+    /// setiap kata terjemahan terukur (SKFont mentah, independen
+    /// dari BuildLayout) muat utuh di lebar kotak render — kata
+    /// yang lebih lebar dari kotak pasti dipecah per karakter oleh
+    /// mesin render.</summary>
+    [Fact]
+    public void Smart_LongWords_NotSplitAtStoredSize_RealGeometry()
+    {
+        var bmp = new SKBitmap(1487, 2048);
+        using (var canvas = new SKCanvas(bmp))
+        {
+            canvas.Clear(new SKColor(32, 40, 48));
+            using var fill = new SKPaint
+            {
+                Color = SKColors.White, Style = SKPaintStyle.Fill, IsAntialias = true,
+            };
+            // Bubble reaksi (kotak OCR asli 1391,1415 96×269) dan
+            // bubble Sakamoto (1132,202 103×146), elips seukuran
+            // interior hasil pindai halaman asli.
+            canvas.DrawOval(new SKRect(1366, 1393, 1486, 1705), fill);
+            canvas.DrawOval(new SKRect(1105, 173, 1265, 381), fill);
+            canvas.Flush();
+        }
+        var reaction = Block(1391, 1415, 96, 269, "Reaksimu selalu lucu, sih.");
+        var sakamoto = Block(1132, 202, 103, 146, "Sakamoto-kun?");
+        var page = PageWith(reaction, sakamoto);
+
+        int n = TypesetService.SmartAutoTypesetPage(page, bmp);
+        Assert.Equal(2, n);
+        foreach (var block in new[] { reaction, sakamoto })
+        {
+            var style = Assert.IsType<TypesetStyle>(block.Typeset);
+            var box = TypesetService.RenderBox(block, style);
+            _out.WriteLine($"{block.Translation} -> kotak {box}, ukuran {style.FontSize}, font '{style.FontFamily}' bold={style.Bold}");
+            Assert.InRange(style.FontSize, 14, 28);
+            using var tf = TypesetService.ResolveTypeface(style);
+            using var font = new SKFont(tf, (float)style.FontSize);
+            using var paint = new SKPaint();
+            foreach (var word in block.Translation!.Split(' '))
+            {
+                float w = font.MeasureText(word, paint);
+                Assert.True(w <= box.Width + 0.75f,
+                    $"Kata '{word}' terukur {w:F1} px pada ukuran {style.FontSize} " +
+                    $"melebihi kotak {box.Width} px — akan terpecah saat digambar.");
+            }
+        }
+        bmp.Dispose();
+    }
+
+    /// <summary>Regresi #2 (sumbu X diiris): dua blok berdampingan
+    /// dalam SATU bubble — sesudah partisi, sumbu yang tidak diiris
+    /// (Y) harus rentang ukur anggota sendiri, BUKAN tinggi union
+    /// (v0.7.0 memberi keduanya tinggi union penuh 411 sehingga
+    /// teks blok kanan terpusat di tengah union, bukan cupingnya).
+    /// Angka mereplikasi geometri halaman asli.</summary>
+    [Fact]
+    public void Partition_SideBySide_NonSlicedAxisUsesOwnMeasuredRange()
+    {
+        var left = Block(201, 1514, 157, 286, "Pas aku ganti gaya rambut…");
+        var right = Block(368, 1419, 111, 201, "Ah, waktu itu ya…");
+        var measured = new Dictionary<TextBlock, SKRectI>
+        {
+            [left] = new SKRectI(198, 1473, 383, 1830),
+            [right] = new SKRectI(217, 1419, 507, 1633),
+        };
+        var parts = TypesetService.PartitionBubbleBoxes(
+            new List<TextBlock> { left, right }, measured);
+        _out.WriteLine($"kiri {parts[left]}, kanan {parts[right]}");
+        // Sumbu iris (X): berbagi tepi di titik tengah pusat blok.
+        Assert.Equal(parts[left].Right, parts[right].Left);
+        Assert.Equal(198, parts[left].Left);
+        Assert.Equal(507, parts[right].Right);
+        // Sumbu non-iris (Y): rentang ukur masing-masing.
+        Assert.Equal(1473, parts[left].Top);
+        Assert.Equal(1830, parts[left].Bottom);
+        Assert.Equal(1419, parts[right].Top);
+        Assert.Equal(1633, parts[right].Bottom);
+    }
+
+    /// <summary>Regresi #2 (sumbu Y diiris): dua blok bertumpuk
+    /// dalam satu bubble — sumbu non-iris (X) harus rentang ukur
+    /// anggota sendiri, bukan lebar union.</summary>
+    [Fact]
+    public void Partition_Stacked_NonSlicedAxisUsesOwnMeasuredRange()
+    {
+        var top = Block(400, 200, 200, 100, "Bagian atas.");
+        var bottom = Block(400, 450, 200, 100, "Bagian bawah.");
+        var measured = new Dictionary<TextBlock, SKRectI>
+        {
+            [top] = new SKRectI(181, 114, 818, 437),
+            [bottom] = new SKRectI(154, 315, 847, 684),
+        };
+        var parts = TypesetService.PartitionBubbleBoxes(
+            new List<TextBlock> { top, bottom }, measured);
+        _out.WriteLine($"atas {parts[top]}, bawah {parts[bottom]}");
+        // Sumbu iris (Y): berbagi tepi di titik tengah pusat blok.
+        Assert.Equal(parts[top].Bottom, parts[bottom].Top);
+        Assert.Equal(114, parts[top].Top);
+        Assert.Equal(684, parts[bottom].Bottom);
+        // Sumbu non-iris (X): rentang ukur masing-masing.
+        Assert.Equal(181, parts[top].Left);
+        Assert.Equal(818, parts[top].Right);
+        Assert.Equal(154, parts[bottom].Left);
+        Assert.Equal(847, parts[bottom].Right);
+    }
 }

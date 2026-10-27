@@ -189,12 +189,34 @@ public static class TypesetService
     /// <summary>Ukuran hasil auto-fit (pencarian kata-utuh
     /// FitLayout) sebuah teks pada kotak tertentu dengan gaya
     /// tertentu — dipakai jalur pintar untuk menyelaraskan ukuran
-    /// font sehalaman sebelum gaya disimpan.</summary>
+    /// font sehalaman sebelum gaya disimpan. Gaya yang diberikan
+    /// WAJIB gaya final blok itu (keluarga + bold hasil
+    /// SmartFontChoice): mengukur dengan typeface lain menghasilkan
+    /// ukuran yang tidak berlaku pada typeface gambar.</summary>
     internal static float MeasureAutoFitSize(
         string text, TypesetStyle style, float boxW, float boxH)
     {
         using var typeface = ResolveTypeface(style);
         return FitLayout(text, style, typeface, boxW, boxH).Size;
+    }
+
+    /// <summary>Apakah tata letak teks pada SATU ukuran eksplisit
+    /// persis (nilai yang akan disimpan &amp; digambar) bersih:
+    /// muat di kotak DAN tidak memecah kata — dihitung dengan
+    /// typeface gaya itu sendiri. Pemeriksaan pada nilai persis
+    /// ini wajib karena lebar glif ter-hint TIDAK monoton terhadap
+    /// ukuran: tata letak pada 26,499 bersih (kata terlebar 105 px)
+    /// bisa memecah kata pada 26,5 (kata yang sama 109 px) — jadi
+    /// ukuran hasil pencarian biner tidak boleh dibulatkan lalu
+    /// dipercaya begitu saja (regresi v0.7.0 → v0.7.1).</summary>
+    internal static bool LayoutCleanAtSize(
+        string text, TypesetStyle style, double size, float boxW, float boxH)
+    {
+        var probe = style.Clone();
+        probe.FontSize = size;
+        using var typeface = ResolveTypeface(probe);
+        var layout = BuildLayout(text, probe, typeface, (float)size, boxW, boxH);
+        return !layout.SplitWord && layout.Fits(probe.Vertical, boxW, boxH);
     }
 
     /// <summary>Keluarga + keberanian font jalur pintar: "Comic
@@ -293,6 +315,12 @@ public static class TypesetService
     /// diiris pada titik tengah antar pusat blok yang berurutan di
     /// sepanjang sumbu dengan sebaran pusat terbesar, sehingga tiap
     /// anggota menerima potongan union yang tidak tumpang tindih.
+    /// Sumbu yang TIDAK diiris memakai rentang ukur anggota itu
+    /// SENDIRI, bukan rentang union: cuping bubble tempat sebuah
+    /// blok duduk umumnya tidak setinggi/setebal union seluruh
+    /// bubble — memakai union membuat teks anggota terpusat di
+    /// tengah union (jauh dari cupingnya) dan bertabrakan visual
+    /// dengan teks anggota lain (regresi v0.7.0 → v0.7.1).
     /// Blok tunggal memakai kotak ukurnya sendiri.
     /// </summary>
     internal static Dictionary<TextBlock, SKRectI> PartitionBubbleBoxes(
@@ -353,9 +381,10 @@ public static class TypesetService
                     end = (int)Math.Round(
                         ((vertical ? c1.Y : c1.X) + (vertical ? c2.Y : c2.X)) / 2.0);
                 }
+                var own = measured[ordered[i]];
                 result[ordered[i]] = vertical
-                    ? new SKRectI(union.Left, start, union.Right, end)
-                    : new SKRectI(start, union.Top, end, union.Bottom);
+                    ? new SKRectI(own.Left, start, own.Right, end)
+                    : new SKRectI(start, own.Top, end, own.Bottom);
                 start = end;
             }
         }
@@ -383,10 +412,14 @@ public static class TypesetService
         var measured = targets.ToDictionary(
             b => b, b => EstimateBubbleBox(baseBmp, b));
         var boxes = PartitionBubbleBoxes(targets, measured);
-        var probe = SmartBaseStyle();
+        // Gaya final tiap blok dibuat SEKALI dan dipakai untuk
+        // SEMUA pengukuran blok itu — pengukuran auto-fit wajib
+        // memakai typeface final (keluarga + bold SmartFontChoice)
+        // yang sama dengan yang nanti menggambar.
+        var styles = targets.ToDictionary(b => b, _ => SmartBaseStyle());
 
         var fits = targets.ToDictionary(b => b, b =>
-            MeasureAutoFitSize(b.Translation!, probe,
+            MeasureAutoFitSize(b.Translation!, styles[b],
                 boxes[b].Width, boxes[b].Height));
         var sorted = fits.Values.OrderBy(v => v).ToList();
         double target = sorted[Math.Min(sorted.Count - 1,
@@ -396,9 +429,19 @@ public static class TypesetService
         foreach (var b in targets)
         {
             var box = boxes[b];
-            var style = SmartBaseStyle();
-            style.FontSize = Math.Round(
+            var style = styles[b];
+            double size = Math.Round(
                 Math.Max(14, Math.Min(target, fits[b])), 1);
+            // Validasi pada nilai tersimpan PERSIS: lebar glif
+            // ter-hint tidak monoton, jadi hasil bulatan bisa
+            // memecah kata walau ukuran pencarian binernya bersih
+            // (lihat LayoutCleanAtSize). Turunkan bertahap sampai
+            // tata letak pada ukuran itu sendiri bersih; lantai
+            // 14 px sama seperti sebelumnya.
+            while (size > 14 && !LayoutCleanAtSize(
+                       b.Translation!, style, size, box.Width, box.Height))
+                size = Math.Round(size - 0.5, 1);
+            style.FontSize = size;
             style.Dx = box.Left - b.X;
             style.Dy = box.Top - b.Y;
             style.Dw = box.Width - b.Width;

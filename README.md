@@ -11,6 +11,32 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.7.1 — Perbaikan Typeset Otomatis Pintar
+
+Dua cacat yang ditemukan verifikasi independen v0.7.0 pada
+halaman manga asli, diperbaiki:
+
+- **Kata panjang tidak lagi pecah di tengah.** Ukuran hasil
+  pencarian biner bersih pada nilai pecahannya (mis. 26,499),
+  tetapi pembulatan ukuran tersimpan ke 0,1 bisa melompat ke
+  lebar glif ter-hint yang lebih besar (lebar ter-hint tidak
+  monoton terhadap ukuran), sehingga pada ukuran final kata
+  terpenggal ("Reaksim/u") atau tanda baca yatim ("?" di baris
+  sendiri). Kini ukuran final **divalidasi ulang pada nilai
+  tersimpan persis** dengan typeface finalnya (keluarga + bold
+  yang sama dengan pengukuran auto-fit) dan diturunkan bertahap
+  (0,5 px, lantai 14) sampai tata letaknya sendiri bersih —
+  muat dan tanpa kata terpecah. Contoh halaman asli: blok
+  reaksi 26,5 → 26; "Sakamoto-kun?" 22,5 → 22, utuh satu baris.
+- **Partisi bubble gabungan memakai rentang bubble anggota
+  sendiri.** Blok yang berbagi satu bubble kini hanya diiris
+  pada sumbu partisi; sumbu lainnya memakai rentang interior
+  hasil ukur blok itu sendiri, bukan rentang gabungan (union)
+  — teks tiap blok kini terpusat di cuping bubble-nya, bukan
+  di tengah union (yang membuat teks dua blok bertabrakan
+  visual). Tes: **86 total — 85 lolos, 0 gagal, 1 skip**
+  (skip lama sandbox yang sama).
+
 ## Status: v0.7.0 — Typeset Otomatis Pintar
 
 - **"Terapkan Otomatis" kini serapi typeset manual** (permintaan

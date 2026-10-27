@@ -706,3 +706,61 @@
     tidak membundel font); (4) kualitas di halaman asli
     berwarna diverifikasi agen utama lewat jalur yang sama
     pada demo manualnya — uji .exe tetap menunggu PC Ando.
+- 2026-10-27: **v0.7.1 — dua cacat jalur pintar DIPERBAIKI**
+  (temuan verifikasi independen agen utama atas render halaman
+  manga asli 1487×2048 via tmp/smart-test, proyek uji TIDAK
+  disentuh):
+  - **#1 Kata panjang pecah di tengah pada ukuran final.**
+    Akar masalah TERBUKTI di kode + terukur (bukan sekadar
+    dugaan urutan font — probe pengukuran memang sudah memakai
+    SmartFontChoice): pencarian biner FitLayout menemukan
+    ukuran bersih pada nilai PECAHAN (reaksi 26,49945: lebar
+    "Reaksimu" ter-hint 105 px ≤ kotak 107), lalu
+    SmartAutoTypesetPage MEMBULATKAN ke 0,1 → 26,5, dan pada
+    26,5 lebar ter-hint kata yang sama MELOMPAT ke 109 px
+    (hinting memkuantisasi lebar glif; tidak monoton terhadap
+    ukuran) → kata dipecah per karakter saat digambar pada
+    ukuran manual tersimpan. Hal yang sama: "Sakamoto-kun?"
+    bersih di 22,4957 (146 px) → bulat 22,5 → 153 px > kotak
+    149 → "?" yatim. Perbaikan: gaya final tiap blok dibuat
+    sekali & dipakai untuk semua pengukurannya, dan ukuran
+    final **divalidasi ulang pada nilai tersimpan persis**
+    (`LayoutCleanAtSize`: BuildLayout pada ukuran itu dengan
+    typeface final — harus muat & tanpa SplitWord), diturunkan
+    0,5 px per langkah sampai bersih (lantai 14). Hasil pada
+    geometri asli: reaksi 26,5 → **26**, Sakamoto 22,5 → **22**
+    (acuan manual agen utama 23 & 20–21; otomatis kini sedikit
+    lebih besar karena kotaknya memang terukur muat utuh —
+    invarian kata-utuh yang dijaga, bukan angka persisnya).
+  - **#2 Partisi bubble gabungan salah di sumbu non-iris.**
+    `PartitionBubbleBoxes` memberi anggota grup potongan union
+    pada sumbu iris DAN rentang union penuh pada sumbu lain →
+    dua blok satu bubble sama-sama setinggi union (411 px),
+    teks blok kanan terpusat di tengah union (ujung bawah
+    cupingnya) & bertabrakan visual dengan teks blok kiri.
+    Perbaikan: sumbu non-iris memakai rentang ukur anggota
+    SENDIRI. Hasil geometri asli: blok kanan y 1419..1633
+    (cupingnya), blok kiri y 1473..1830 — sesuai acuan.
+  - **Tes: 86 total — 85 lolos, 0 gagal, 1 skip** (skip lama
+    loopback yang sama; tmp/xunit-results-v071.xml; baseline
+    v0.7.0: 83/82/1). 3 tes regresi baru di SmartTypesetTests
+    (kata panjang utuh pada ukuran tersimpan — geometri elips
+    mereplikasi bubble asli, lebar kata diperiksa dengan SKFont
+    mentah independen dari BuildLayout; partisi berdampingan;
+    partisi bertumpuk) — ketiganya **gagal 3/3 pada kode
+    v0.7.0** (dibuktikan dengan stash perbaikan) dan lolos pada
+    kode baru. Tes lama partisi dua-blok-satu-bubble tetap
+    lolos apa adanya (union hasil partisi baru tetap menutup
+    ≥85% elips pada kasus sintetis itu).
+  - Publish win-x64 single-file ulang: **124.678.737 byte**
+    PE32+ GUI (jumlah byte kebetulan sama dengan v0.7.0 — isi
+    terverifikasi beda: string footer UTF-16 "v0.7.1 —
+    Typeset Otomatis" ada, string v0.7.0 tidak). VERSION +
+    footer → 0.7.1 (label tetap "Typeset Otomatis").
+  - Batas jujur: (1) invarian yang dijaga = kata utuh + muat
+    pada ukuran tersimpan; ukuran otomatis bisa ±1–3 px dari
+    pilihan manual manusia karena lebar ter-hint memang
+    berundak; (2) lantai 14 px: kata yang pada 14 px pun lebih
+    lebar dari kotaknya tetap dipecah mesin render (perilaku
+    lama yang disengaja untuk kata mustahil); (3) verifikasi
+    .exe di Windows asli tetap menunggu PC Ando.
