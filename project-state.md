@@ -831,3 +831,43 @@
   tidak memicu penghalang — kasus seperti itu kembali ke
   perilaku toleransi lama; verifikasi ulang page-c asli
   di tangan agen utama.
+- 2026-10-27: **v0.7.5 — perlindungan garis tepi pada
+  inpaint.** Cacat dari verifikasi visual agen utama pada
+  page-c asli (crop orig vs cleaned): garis tepi bubble
+  kanan hilang sebagian sesudah inpaint (segmen kanan-tengah
+  sejajar kolom teks lenyap; goresan hitam di atas bubble
+  ikut terhapus), padahal di asli garisnya utuh. Akar
+  masalah: mask inpaint = tinta gelap dalam kotak blok +
+  dilasi; kolom teks ±6 px dari garis, jadi piksel garis
+  masuk mask langsung/kena dilasi lalu ter-inpaint.
+  Analisis komponen terhubung (agen utama, read-only) pada
+  crop blok page-c (855,75,155x326): komponen garis utama
+  3.544 px menyentuh tepi crop (376 px di wilayah blok,
+  219 terhapus di hasil bersih) DAN busur garis kanan yang
+  lepas dari komponen utama (372 px, tidak menyentuh tepi
+  crop, 163/171 px wilayahnya terhapus) — busur itu hanya
+  melintasi batas kotak blok. Perbaikan: InkMask.
+  LineProtection (ambang tinta sama, InkLuminance 140)
+  menghitung komponen 8-arah dari piksel gelap potongan
+  SEBELUM dilasi; komponen yang menyentuh tepi potongan
+  ATAU melintasi batas kotak blok (punya piksel di dalam
+  dan di luar wilayah inset) dilindungi: dikeluarkan dari
+  mask + bukan sumber dilasi (InkMask.Build) dan alfanya
+  dipaksa 0 lagi sesudah expand+blur (InkMask.
+  FeatherAlpha); CleanService.InpaintBlock menghitung peta
+  sekali dan meneruskannya ke keduanya. Mode solid tidak
+  berubah; di luar mask tetap piksel-persis. Tes regresi
+  baru: InkMask_LineProtection_KeepsCrossingLines_
+  RemovesGlyphs (tingkat mask/alfa, tanpa model) +
+  Inpaint_ProtectsBubbleOutlineNearTextColumn (sintetis
+  meniru page-c: garis 3 px, kolom vertikal ±6 px dari
+  garis, blok mencakup garis; densitas garis ≥ 95% asli,
+  tinta interior turun ≥ 90%). Tes final: **93 total —
+  92 lolos, 0 gagal, 1 skip** (XML
+  tmp/xunit-results-v075.xml; baseline v0.7.4: 91/90/0/1).
+  Batas jujur: glif yang menyatu fisik dengan garis tepi
+  (satu komponen) ikut terlindungi dan tidak terhapus;
+  karya garis gelap lain yang melintasi kotak blok (mis.
+  rambut/efek yang masuk bubble) juga terlindungi —
+  memang itu tujuannya, tetapi teks yang menempel pada
+  karya garis seperti itu bisa tertinggal.

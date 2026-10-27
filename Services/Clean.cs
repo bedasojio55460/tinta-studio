@@ -137,7 +137,11 @@ public sealed class CleanService : IDisposable
     /// <summary>
     /// Inpaint satu blok pada bitmap target (diubah di tempat):
     /// potong blok+margin, mask tinta dari dalam kotak blok, jalankan
-    /// LaMA, tempel balik hanya di area mask bertepi lembut.
+    /// LaMA, tempel balik hanya di area mask bertepi lembut. Komponen
+    /// tinta yang menyentuh tepi potongan atau melintasi batas kotak
+    /// blok (garis tepi bubble / karya garis) DILINDUNGI — tidak
+    /// masuk mask dan alfanya dipaksa 0 — supaya garis tepi yang
+    /// duduk dekat kolom teks tidak ikut terhapus (v0.7.5).
     /// </summary>
     public void InpaintBlock(SKBitmap target, TextBlock block, CancellationToken ct = default)
     {
@@ -164,8 +168,11 @@ public sealed class CleanService : IDisposable
         var blockInCrop = new SKRectI(
             blockRect.Left - cropRect.Left, blockRect.Top - cropRect.Top,
             blockRect.Right - cropRect.Left, blockRect.Bottom - cropRect.Top);
-        using var mask = InkMask.Build(crop, blockInCrop, dilate: 3, inset: 2);
-        var alpha = InkMask.FeatherAlpha(mask, expand: 2, blur: 2);
+        // Peta perlindungan garis dihitung sekali dari potongan,
+        // dipakai mask (sebelum dilasi) dan alfa (sesudah feather).
+        var protect = InkMask.LineProtection(crop, blockInCrop, inset: 2);
+        using var mask = InkMask.Build(crop, blockInCrop, dilate: 3, inset: 2, protect);
+        var alpha = InkMask.FeatherAlpha(mask, expand: 2, blur: 2, protect);
 
         using var filled = _inpainter.Inpaint(crop, mask);
         for (int y = 0; y < cropRect.Height; y++)

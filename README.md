@@ -11,6 +11,44 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.7.5 — Perlindungan Garis Tepi pada Inpaint
+
+Cacat yang ditemukan verifikasi independen pada sampel asli
+"page-c": garis tepi bubble kanan HILANG sebagian sesudah
+inpaint. Di gambar asli garisnya utuh melingkar; di hasil
+bersih, segmen tepi kanan-tengah (sejajar kolom teks) lenyap
+dan goresan hitam di atas bubble ikut terhapus. Penyebabnya:
+mask inpaint dibangun dari tinta gelap di dalam kotak blok
+lalu didilasi — kolom teks Jepang duduk ±6 px dari garis
+tepi, jadi piksel garis ikut masuk mask (langsung atau kena
+dilasi) dan ter-inpaint.
+
+- **Komponen tinta yang menyentuh tepi potongan atau
+  melintasi batas kotak blok kini DILINDUNGI**
+  (`InkMask.LineProtection`, ambang tinta yang sama dengan
+  pembangun mask): komponen terhubung (8-arah) dari piksel
+  gelap pada potongan dihitung sebelum dilasi; komponen yang
+  menyentuh tepi potongan, atau yang punya piksel di dalam
+  DAN di luar kotak blok, dianggap garis tepi / karya garis
+  — seluruh pikselnya dipaksa keluar dari mask, tidak
+  menjadi sumber dilasi, dan alfanya dipaksa 0 lagi sesudah
+  feathering. Analisis komponen pada page-c membuktikan
+  kedua pola itu nyata: komponen garis utama (terhubung ke
+  karya garis yang keluar potongan) dan satu busur garis
+  yang lepas dari komponen utama tetapi melintasi batas
+  kotak blok — keduanya menyumbang piksel yang terhapus.
+  Glif teks yang utuh di dalam kotak tidak berubah
+  perilakunya dan tetap ter-inpaint.
+- **Tanpa regresi:** fixture Tahap 3 (garis bubble utuh +
+  interior bersih) dan seluruh suite lama tetap lolos.
+  Tes: **93 total — 92 lolos, 0 gagal, 1 skip** (skip lama
+  sandbox yang sama); 2 tes regresi baru (peta perlindungan
+  di tingkat mask/alfa + inpaint ujung-ke-ujung: densitas
+  garis tepi ≥ 95% dari asli, tinta interior turun ≥ 90%).
+  Batas jujur: glif yang secara fisik menyatu dengan garis
+  tepi (satu komponen tinta yang sama) ikut terlindungi dan
+  tidak terhapus — menghapusnya berarti memotong garisnya.
+
 ## Status: v0.7.4 — Penghalang Gelap pada Pindai Bubble
 
 Cacat yang ditemukan verifikasi independen pada sampel asli

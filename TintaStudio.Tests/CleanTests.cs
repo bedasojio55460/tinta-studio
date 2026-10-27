@@ -344,4 +344,100 @@ public sealed class CleanTests
         Assert.True(File.Exists(cbz));
         Directory.Delete(dir, recursive: true);
     }
+
+    [Fact]
+    public void InkMask_LineProtection_KeepsCrossingLines_RemovesGlyphs()
+    {
+        // Potongan sintetis 220x300: garis vertikal 3 px menembus
+        // potongan (menyentuh tepi atas/bawah), segmen garis yang
+        // hanya melintasi batas wilayah blok (pola busur garis
+        // page-c yang lepas dari komponen utama), dan dua glif
+        // lepas utuh di dalam wilayah — satu dekat garis.
+        using var crop = new SKBitmap(220, 300);
+        using (var canvas = new SKCanvas(crop))
+        {
+            canvas.Clear(SKColors.White);
+            using var black = new SKPaint
+            { Color = SKColors.Black, Style = SKPaintStyle.Fill };
+            canvas.DrawRect(new SKRect(170, 0, 173, 300), black);
+            canvas.DrawRect(new SKRect(180, 100, 206, 103), black);
+            canvas.DrawRect(new SKRect(60, 120, 92, 152), black);
+            canvas.DrawRect(new SKRect(140, 120, 164, 152), black);
+        }
+        var region = new SKRectI(30, 60, 200, 240);
+        var protect = InkMask.LineProtection(crop, region, inset: 2);
+        Assert.True(protect[150 * 220 + 171],
+            "Garis yang menembus potongan harus terlindungi.");
+        Assert.True(protect[101 * 220 + 190],
+            "Garis yang melintasi batas wilayah harus terlindungi.");
+        Assert.False(protect[136 * 220 + 76],
+            "Glif lepas di dalam wilayah tidak boleh terlindungi.");
+        Assert.False(protect[136 * 220 + 152],
+            "Glif dekat garis pun tidak boleh terlindungi.");
+
+        using var mask = InkMask.Build(crop, region, dilate: 3, inset: 2, protect);
+        Assert.Equal(0, (int)mask.GetPixel(171, 150).Red);
+        Assert.Equal(0, (int)mask.GetPixel(190, 101).Red);
+        Assert.Equal(255, (int)mask.GetPixel(76, 136).Red);
+        Assert.Equal(255, (int)mask.GetPixel(152, 136).Red);
+
+        // Perlindungan diterapkan lagi sesudah feathering: glif
+        // dekat garis membuat alfa menyebar ke arah garis, tetapi
+        // piksel garis harus tetap tepat 0.
+        var alpha = InkMask.FeatherAlpha(mask, expand: 2, blur: 2, protect);
+        Assert.Equal(0f, alpha[136 * 220 + 171]);
+        Assert.True(alpha[136 * 220 + 152] > 0f);
+    }
+
+    [SkippableFact]
+    public void Inpaint_ProtectsBubbleOutlineNearTextColumn()
+    {
+        Skip.If(!ModelStore.InpaintReady,
+            "Model inpaint belum diunduh: inpaint-lama.onnx");
+        // Meniru page-c: bubble bergaris tepi hitam 3 px, kolom
+        // teks vertikal gelap ±6 px dari garis kanan, dan kotak
+        // blok rapat yang ikut mencakup segmen garis tepi — tanpa
+        // perlindungan, segmen itu masuk mask dan ter-inpaint.
+        const int W = 500, H = 700;
+        using var page = new SKBitmap(W, H);
+        using (var canvas = new SKCanvas(page))
+        {
+            canvas.Clear(SKColors.White);
+            using var black = new SKPaint
+            { Color = SKColors.Black, Style = SKPaintStyle.Fill };
+            using var white = new SKPaint
+            { Color = SKColors.White, Style = SKPaintStyle.Fill };
+            canvas.DrawRect(new SKRect(60, 60, 440, 640), black);
+            canvas.DrawRect(new SKRect(63, 63, 437, 637), white);
+            for (int i = 0; i < 7; i++)
+                canvas.DrawRect(new SKRect(407, 130 + i * 52, 431, 162 + i * 52), black);
+        }
+        string hashBefore = CleanService.PngHash(page);
+        var borderBand = new SKRectI(437, 140, 440, 500);
+        var interior = new SKRectI(400, 120, 436, 500);
+        double borderBefore = InkDensity(page, borderBand);
+        double inkBefore = InkDensity(page, interior);
+        _out.WriteLine($"sebelum: garis {borderBefore:F3}, interior {inkBefore:F3}");
+        Assert.Equal(1.0, borderBefore);
+        Assert.True(inkBefore > 0.10, "Fixture interior harus bertinta (ada kolom teks).");
+
+        var block = new TextBlock
+        {
+            X = 372, Y = 100, Width = 118, Height = 420,
+            Text = "テスト", Language = "ja",
+        };
+        var projPage = PageWith(block);
+        CleanService.SetBlockOperation(projPage, block, CleanMode.Inpaint, null);
+
+        using var clean = new CleanService();
+        using var cleaned = clean.BuildCleanedPage(page, projPage);
+        double borderAfter = InkDensity(cleaned, borderBand);
+        double inkAfter = InkDensity(cleaned, interior);
+        _out.WriteLine($"sesudah: garis {borderAfter:F3}, interior {inkAfter:F3}");
+        Assert.True(borderAfter >= borderBefore * 0.95,
+            $"Garis tepi harus utuh ≥95% (sebelum {borderBefore:F3}, sesudah {borderAfter:F3}).");
+        Assert.True(inkAfter <= inkBefore * 0.10,
+            $"Tinta interior harus hilang ≥90% (sebelum {inkBefore:F3}, sesudah {inkAfter:F3}).");
+        Assert.Equal(hashBefore, CleanService.PngHash(page));
+    }
 }

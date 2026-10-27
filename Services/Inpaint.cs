@@ -118,16 +118,111 @@ public static class InkMask
         (px.Red * 299 + px.Green * 587 + px.Blue * 114) / 1000 < InkLuminance;
 
     /// <summary>
+    /// Peta piksel GARIS yang dilindungi pada bitmap (biasanya
+    /// potongan inpaint): piksel tinta — ambang sama dengan
+    /// <see cref="IsInk"/> — yang termasuk komponen terhubung
+    /// (8-arah) yang (a) menyentuh tepi bitmap, ATAU (b) melintasi
+    /// batas <paramref name="region"/> yang menyusut
+    /// <paramref name="inset"/> piksel: komponen itu punya piksel
+    /// tinta di dalam DAN di luar wilayah tersebut. Komponen
+    /// semacam itu dianggap garis tepi bubble / karya garis yang
+    /// melintasi potongan, bukan glif teks lepas (glif normal utuh
+    /// di dalam wilayah). Piksel terlindungi tidak boleh masuk
+    /// mask inpaint: garis tepi yang masuk mask ikut terhapus
+    /// LaMA (cacat v0.7.5 — pada page-c, kolom teks duduk ±6 px
+    /// dari garis tepi; segmen garis yang terhubung ke karya
+    /// garis yang keluar potongan hilang sebagian, dan segmen
+    /// busur garis yang lepas dari komponen utama pun hilang
+    /// karena melintasi batas kotak blok).
+    /// </summary>
+    public static bool[] LineProtection(SKBitmap bmp, SKRectI region, int inset = 2)
+    {
+        int w = bmp.Width, h = bmp.Height;
+        var result = new bool[w * h];
+        if (w <= 0 || h <= 0)
+            return result;
+        var ink = new bool[w * h];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                ink[y * w + x] = IsInk(bmp.GetPixel(x, y));
+
+        int x0 = Math.Clamp(region.Left + inset, 0, w);
+        int y0 = Math.Clamp(region.Top + inset, 0, h);
+        int x1 = Math.Clamp(region.Right - inset, 0, w);
+        int y1 = Math.Clamp(region.Bottom - inset, 0, h);
+        bool Inside(int px, int py) => px >= x0 && px < x1 && py >= y0 && py < y1;
+
+        var label = new int[w * h];
+        Array.Fill(label, -1);
+        var stack = new List<int>();
+        var members = new List<int>();
+        int nextLabel = 0;
+        for (int sy = 0; sy < h; sy++)
+        {
+            for (int sx = 0; sx < w; sx++)
+            {
+                int start = sy * w + sx;
+                if (!ink[start] || label[start] >= 0)
+                    continue;
+                members.Clear();
+                stack.Clear();
+                stack.Add(start);
+                label[start] = nextLabel;
+                bool touchesEdge = false, hasIn = false, hasOut = false;
+                while (stack.Count > 0)
+                {
+                    int cur = stack[^1];
+                    stack.RemoveAt(stack.Count - 1);
+                    members.Add(cur);
+                    int cx = cur % w, cy = cur / w;
+                    if (cx == 0 || cy == 0 || cx == w - 1 || cy == h - 1)
+                        touchesEdge = true;
+                    if (Inside(cx, cy)) hasIn = true; else hasOut = true;
+                    for (int dy = -1; dy <= 1; dy++)
+                    {
+                        for (int dx = -1; dx <= 1; dx++)
+                        {
+                            if (dx == 0 && dy == 0)
+                                continue;
+                            int nx = cx + dx, ny = cy + dy;
+                            if (nx < 0 || ny < 0 || nx >= w || ny >= h)
+                                continue;
+                            int ni = ny * w + nx;
+                            if (ink[ni] && label[ni] < 0)
+                            {
+                                label[ni] = nextLabel;
+                                stack.Add(ni);
+                            }
+                        }
+                    }
+                }
+                if (touchesEdge || (hasIn && hasOut))
+                    foreach (int m in members)
+                        result[m] = true;
+                nextLabel++;
+            }
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Bangun mask (putih = di-inpaint) SEUKURAN bitmap sumber, dengan
     /// tinta hanya diambil dari piksel gelap di dalam
     /// <paramref name="region"/>, lalu dilasi <paramref name="dilate"/>
     /// piksel agar sisa anti-alias teks ikut tertutup. Tepi region
     /// menyusut <paramref name="inset"/> piksel dulu, supaya garis
     /// bubble yang kebetulan masuk kotak deteksi tidak ikut terhapus.
+    /// Piksel garis terlindungi (<see cref="LineProtection"/>) tidak
+    /// pernah masuk mask dan tidak menjadi sumber dilasi;
+    /// <paramref name="protect"/> boleh diisi pemanggil agar peta
+    /// yang sama dipakai ulang sesudah feathering.
     /// </summary>
-    public static SKBitmap Build(SKBitmap page, SKRectI region, int dilate = 3, int inset = 2)
+    public static SKBitmap Build(SKBitmap page, SKRectI region, int dilate = 3, int inset = 2,
+        bool[]? protect = null)
     {
         int w = page.Width, h = page.Height;
+        if (protect is null || protect.Length != w * h)
+            protect = LineProtection(page, region, inset);
         var raw = new bool[w * h];
         int x0 = Math.Clamp(region.Left + inset, 0, w);
         int y0 = Math.Clamp(region.Top + inset, 0, h);
@@ -137,7 +232,7 @@ public static class InkMask
         {
             for (int x = x0; x < x1; x++)
             {
-                if (IsInk(page.GetPixel(x, y)))
+                if (IsInk(page.GetPixel(x, y)) && !protect[y * w + x])
                     raw[y * w + x] = true;
             }
         }
@@ -156,6 +251,10 @@ public static class InkMask
                             on = true;
                     }
                 }
+                // Garis terlindungi tidak pernah termask, walau
+                // dilasi dari glif tetangga mencapainya.
+                if (protect[y * w + x])
+                    on = false;
                 mask.SetPixel(x, y, on ? SKColors.White : SKColors.Black);
             }
         }
@@ -167,9 +266,14 @@ public static class InkMask
     /// (1 = sepenuhnya hasil inpaint) — mask diperluas
     /// <paramref name="expand"/> piksel dulu, lalu kabur kotak
     /// <paramref name="blur"/> piksel supaya tempelan menyatu tanpa
-    /// menyentuh garis bubble jauh di luar mask.
+    /// menyentuh garis bubble jauh di luar mask. Bila
+    /// <paramref name="protect"/> diisi (peta dari
+    /// <see cref="LineProtection"/>), alfa pada piksel terlindungi
+    /// dipaksa 0 di AKHIR: perluasan + kabur tidak boleh menimpa
+    /// garis tepi yang sudah dikeluarkan dari mask.
     /// </summary>
-    public static float[] FeatherAlpha(SKBitmap mask, int expand = 2, int blur = 2)
+    public static float[] FeatherAlpha(SKBitmap mask, int expand = 2, int blur = 2,
+        bool[]? protect = null)
     {
         int w = mask.Width, h = mask.Height;
         var a = new float[w * h];
@@ -217,6 +321,14 @@ public static class InkMask
                         }
                     a[y * w + x] = sum / n;
                 }
+        }
+        // Perlindungan diterapkan lagi paling akhir (v0.7.5):
+        // piksel garis harus persis asli, bukan campuran inpaint.
+        if (protect is not null && protect.Length == a.Length)
+        {
+            for (int i = 0; i < a.Length; i++)
+                if (protect[i])
+                    a[i] = 0f;
         }
         return a;
     }
