@@ -266,10 +266,12 @@ public sealed class TypesetTests
     }
 
     [Fact]
-    public void AutoTypeset_VerticalBlock_WidensBox_InkByWordInside()
+    public void AutoTypeset_VerticalBlock_StaysVertical_InkStraightDown()
     {
         // Blok OCR vertikal asli fixture: kotak 72×326 sesempit kolom
-        // teks vertikalnya, terjemahan Indonesia di-typeset horizontal.
+        // teks vertikalnya. Arah typeset mengikuti arah sumber
+        // (permintaan Ando 2026-10-27): terjemahannya lurus ke bawah
+        // di kotak asli — tidak dipaksa horizontal/dilebarkan.
         var vBlock = new TextBlock
         {
             X = 745, Y = 245, Width = 72, Height = 326,
@@ -282,30 +284,31 @@ public sealed class TypesetTests
         int n = TypesetService.AutoTypesetPage(page, MangaFixture.PageWidth);
         Assert.Equal(1, n);
         var style = Assert.IsType<TypesetStyle>(vBlock.Typeset);
-        Assert.False(style.Vertical);
-        // Pelebaran tercatat sebagai geometri tersimpan: lebar sasaran
-        // max(72, round(326 × 0,55)) = 179 → Dw = 107, dan kotak
-        // efektif (= RenderBox) selebar itu serta tetap di halaman.
-        Assert.True(style.Dw > 0,
-            $"Blok vertikal harus dilebarkan (Dw={style.Dw}).");
-        Assert.Equal(179, vBlock.Width + style.Dw);
+        Assert.True(style.Vertical);
+        // Geometri kotak tidak diubah: tidak ada pelebaran.
+        Assert.Equal(0, style.Dw);
+        Assert.Equal(0, style.Dx);
         var eff = TypesetService.RenderBox(vBlock, style);
-        Assert.Equal(179, eff.Width);
-        Assert.True(eff.Left >= 0 && eff.Right <= MangaFixture.PageWidth,
-            $"Kotak efektif harus di dalam halaman: {eff}");
+        Assert.Equal(vBlock.Width, eff.Width);
+        Assert.Equal(vBlock.Height, eff.Height);
 
         using var basePage = BlankPage(SKColors.White);
         using var final = TypesetService.RenderFinalBitmap(basePage, page);
-        // Semua tinta di dalam kotak yang dilebarkan (+ margin 3).
+        // Semua tinta di dalam kotak asli (+ margin 3).
         Assert.Equal(0, DiffOutside(final, basePage, eff, margin: 3));
-        // Lebar tinta jauh melampaui kolom asli 72 px: teks terbungkus
-        // per kata, bukan menumpuk per karakter di kolom sempit.
+        // Tinta membentuk SATU kolom lurus ke bawah: jauh lebih
+        // tinggi daripada lebar, selebar satu huruf saja (bukan dua
+        // kolom bersebelahan), dan mengisi sebagian besar kotak.
         var ink = InkBounds(final, eff);
         Assert.False(ink.IsEmpty);
         _out.WriteLine($"kotak tinta: {ink.Width}×{ink.Height} " +
-                       $"di kotak efektif {eff.Width}×{eff.Height}");
-        Assert.True(ink.Width > vBlock.Width,
-            $"Lebar tinta {ink.Width} harus > lebar kotak asli {vBlock.Width}.");
+                       $"di kotak asli {eff.Width}×{eff.Height}");
+        Assert.True(ink.Height > ink.Width * 3,
+            $"Tinta harus lurus ke bawah (tinggi {ink.Height} vs lebar {ink.Width}).");
+        Assert.True(ink.Height > eff.Height / 2,
+            $"Tinta harus mengisi kolom (tinggi {ink.Height} dari {eff.Height}).");
+        Assert.True(ink.Width < eff.Width / 2,
+            $"Tinta harus satu kolom (lebar {ink.Width} dari {eff.Width}).");
     }
 
     [Fact]

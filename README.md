@@ -11,26 +11,22 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## Status: v0.5.1 — Tahap 5 (Typesetting) + perbaikan blok vertikal
+## Status: v0.5.2 — Tahap 5 (Typesetting) + arah vertikal
 
-- **Perbaikan v0.5.1 — blok vertikal tidak lagi terpenggal.**
-  Kotak OCR blok teks vertikal sesempit kolom teks vertikalnya
-  (mis. 72×326), sementara geometri bubble-nya tidak tersimpan
-  (detektor tidak menyimpan kelas bubble). Diterjemahkan lalu
-  di-typeset horizontal, teksnya dibungkus per karakter dan
-  meluber keluar bubble. Sekarang **Terapkan Otomatis melebarkan
-  kotak render blok vertikal** yang di-typeset horizontal:
-  simetris di sekitar pusat blok sampai `max(lebar blok,
-  0,55 × tinggi blok)` (dibatasi lebar halaman, X dijepit ke
-  dalam halaman), tercatat sebagai geometri tersimpan **Dw/Dx**
-  (fixture: Dw=107, Dx=−53 → kotak 179 px) yang terlihat di panel
-  dan bisa diubah pengguna. Blok horizontal dan blok yang
-  di-typeset vertikal tidak disentuh; blok bergaya eksplisit
-  tidak ditimpa. Sekalian, **pas-otomatis kini mengutamakan
-  ukuran terbesar yang memuat semua kata UTUH** (aturan pemecah
-  kata tidak berubah; pemecahan per karakter hanya dipakai bila
-  tak ada ukuran yang memuat kata utuh) — "Terima kasih!" kini
-  terbungkus "Terima / kasih!", bukan "Teri / ma / kasi / h!".
+- **Perbaikan v0.5.2 — arah typeset mengikuti arah sumber**
+  (permintaan Ando). Blok OCR vertikal kini di-typeset
+  **vertikal juga** oleh Terapkan Otomatis: terjemahannya lurus
+  ke bawah di kotak aslinya ("Terima kasih!" satu kolom dari atas
+  ke bawah), bukan dipaksa horizontal. Pas-otomatis vertikal
+  mengutamakan **satu kolom** selama ukuran font masih terbaca
+  (≥ 12 px); teks yang terlalu panjang jatuh ke banyak kolom
+  (kanan → kiri) seperti pakem CJK. Pengguna tetap bebas
+  mematikan/menghidupkan **Vertikal** per blok di panel properti.
+  Ini menggantikan pendekatan v0.5.1 (melebarkan kotak blok
+  vertikal lalu men-typeset horizontal); yang bertahan dari
+  v0.5.1: **pas-otomatis horizontal mengutamakan ukuran terbesar
+  yang memuat semua kata UTUH** (pemecahan per karakter hanya
+  dipakai bila tak ada ukuran yang memuat kata utuh).
 - **Teks terjemahan digambar ke halaman bersih** di dalam kotak
   bloknya (`Services/Typeset.cs`, SkiaSharp) → halaman final yang
   bisa dibaca; dasar render = gambar bersih Tahap 3 (atau halaman

@@ -473,3 +473,45 @@
     byte** (PE32+ GUI; jumlah byte kebetulan sama dengan v0.5.0
     — isi terverifikasi berbeda: simbol WidenVerticalSourceBox
     + string footer v0.5.1 ada di dalam exe, string v0.5.0 tidak).
+- 2026-10-27 ~01:11–01:21 PDT: **v0.5.2 — arah typeset mengikuti
+  arah sumber (permintaan Ando).** Ando menunjuk render demo
+  v0.5.1: "Terima kasih!" di bubble vertikal harusnya **lurus ke
+  bawah** mengikuti arah teks Jepangnya, dan menanyakan apakah
+  arahnya bisa diedit. Jawaban + perbaikan:
+  - Manual memang sudah bisa: centang **Vertikal** per blok di
+    panel properti Typesetting (huruf tegak menumpuk ke bawah,
+    kolom berikutnya ke kiri).
+  - **Terapkan Otomatis diganti pakemnya**: blok
+    `Direction == Vertical` kini mendapat gaya `Vertical = true`
+    (preset Dialog + vertikal), kotak asli tidak diubah
+    (Dw/Dx = 0). Fungsi pelebaran v0.5.1
+    (`WidenVerticalSourceBox`) DIHAPUS; pas-otomatis kata-utuh
+    untuk horizontal dipertahankan.
+  - **Pas-otomatis vertikal mengutamakan satu kolom**:
+    `SearchFit` menerima batas `maxColumns`; `FitLayout`
+    vertikal mencoba dulu ukuran terbesar yang muat dalam SATU
+    kolom dan memakainya bila ≥ 12 px — tanpa ini, pencarian
+    lama memilih font lebih besar dalam DUA kolom ("Terima" di
+    kolom kanan, "kasih!" di kolom kiri) yang untuk teks Latin
+    membingungkan. Teks terlalu panjang tetap jatuh ke banyak
+    kolom. Tes blok vertikal ditulis ulang: gaya vertikal,
+    Dw/Dx = 0, 0 piksel di luar kotak asli + margin 3, tinta
+    SATU kolom (lebar < separuh kotak, tinggi > separuh kotak).
+  - Tes: **66 total — 65 lolos, 0 gagal, 1 skip** (skip lama
+    bersyarat sandbox yang sama), tmp/xunit-results-v052.xml.
+    Build Release bersih 0/0; publish win-x64 single-file ulang:
+    **TintaStudio.exe 124.633.681 byte** (lagi-lagi jumlah byte
+    sama — isi baru: footer "v0.5.2").
+  - Bukti end-to-end di luar suite: halaman uji PIL buatan agen
+    utama (bubble horizontal こんにちは + bubble vertikal
+    ありがとう) → CLI --ocr membaca 2 blok persis (vertikal
+    78×346, ocr 0,83) → --clean solid → terjemahan diisi →
+    --render: proyek tersimpan menunjukkan blok vertikal
+    `vertical: true, dw: 0`; tmp/render-demo-v052/page-001.png
+    menampilkan "Terima kasih!" SATU kolom lurus ke bawah di
+    dalam bubble vertikal (terverifikasi visual agen utama;
+    potongan zoom: tmp/render-demo-v052/crop-vertikal.png).
+  - Catatan: blok yang SUDAH terlanjur bergaya horizontal oleh
+    v0.5.1 tidak ditimpa Terapkan Otomatis (aturan lama: gaya
+    eksplisit dihormati) — pengguna mematikan Vertikal/hapus
+    gaya dulu, atau blok baru otomatis benar. Tersisa Tahap 6.

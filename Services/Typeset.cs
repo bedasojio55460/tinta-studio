@@ -135,9 +135,12 @@ public static class TypesetService
     /// <summary>Isi Typeset bawaan (preset Dialog) ke semua blok
     /// berterjemahan yang belum punya Typeset. Mengembalikan jumlah
     /// blok yang diisi. Blok yang sudah punya Typeset (eksplisit dari
-    /// pengguna) tidak ditimpa. <paramref name="pageWidth"/> = lebar
-    /// halaman asal dalam piksel (0 = tidak diketahui) — dipakai
-    /// pelebaran blok vertikal di bawah.</summary>
+    /// pengguna) tidak ditimpa. Arah typeset mengikuti arah sumber:
+    /// blok OCR VERTIKAL di-typeset vertikal juga (huruf lurus ke
+    /// bawah di kotak aslinya), bukan dipaksa horizontal — pengguna
+    /// tetap bisa mematikan Vertikal di panel properti bila lebih
+    /// suka horizontal. <paramref name="pageWidth"/> = lebar halaman
+    /// asal dalam piksel (0 = tidak diketahui).</summary>
     public static int AutoTypesetPage(ProjectPage page, int pageWidth = 0)
     {
         int n = 0;
@@ -146,7 +149,8 @@ public static class TypesetService
             if (block.Typeset is null && !string.IsNullOrWhiteSpace(block.Translation))
             {
                 var style = TypesetPresets.Create(TypesetPresets.Dialog);
-                WidenVerticalSourceBox(block, style, pageWidth);
+                if (block.Direction == TextDirection.Vertical)
+                    style.Vertical = true;
                 block.Typeset = style;
                 n++;
             }
@@ -161,46 +165,6 @@ public static class TypesetService
         ProjectChapter chapter, Func<int, int>? pageWidthFor = null) =>
         chapter.Pages.Sum(p =>
             AutoTypesetPage(p, pageWidthFor?.Invoke(p.Index) ?? 0));
-
-    /// <summary>
-    /// Pelebaran kotak render untuk blok hasil OCR berarah VERTIKAL
-    /// yang di-typeset HORIZONTAL. Kotak OCR blok vertikal sesempit
-    /// kolom teks vertikalnya (mis. 72×326); geometri bubble-nya
-    /// sendiri tidak tersimpan (pipeline deteksi tidak menyimpan
-    /// kelas bubble), jadi teks horizontal di kotak sesempit itu
-    /// dibungkus per karakter oleh pas-otomatis dan glifnya meluber
-    /// keluar bubble. Perbaikannya: lebarkan kotak render simetris
-    /// di sekitar pusat blok sampai lebar yang masuk akal terhadap
-    /// tinggi blok (0,55 × tinggi, dibatasi lebar halaman), geser X
-    /// dijepit agar kotak efektif tidak keluar halaman (margin 4),
-    /// dan catat sebagai geometri tersimpan (Dw/Dx pada gaya yang
-    /// baru dibuat) — terlihat di panel dan bisa diubah pengguna.
-    /// Blok horizontal, blok yang memang di-typeset vertikal, dan
-    /// blok yang kotaknya sudah cukup lebar tidak diubah.
-    /// </summary>
-    private static void WidenVerticalSourceBox(
-        TextBlock block, TypesetStyle style, int pageWidth)
-    {
-        if (block.Direction != TextDirection.Vertical || style.Vertical)
-            return;
-        int target = Math.Max(block.Width,
-            (int)Math.Round(block.Height * 0.55));
-        if (pageWidth > 0)
-            target = Math.Min(pageWidth, target);
-        int dw = target - block.Width;
-        if (dw <= 0)
-            return;
-        style.Dw += dw;
-        int dx = style.Dx - dw / 2;
-        if (pageWidth > 0)
-        {
-            const int margin = 4;
-            int effX = block.X + dx;
-            int maxX = Math.Max(margin, pageWidth - margin - target);
-            dx = Math.Clamp(effX, margin, maxX) - block.X;
-        }
-        style.Dx = dx;
-    }
 
     // ─── Font ────────────────────────────────────────────────────────
 
@@ -410,16 +374,26 @@ public static class TypesetService
 
     /// <summary>Pilih ukuran font: manual bila FontSize &gt; 0;
     /// selain itu pencarian biner ukuran terbesar yang muat —
-    /// diutamakan yang tidak memecah kata (lihat ringkasan kelas);
-    /// bila tidak ada (kata tunggal memang lebih lebar dari kotak
-    /// pada semua ukuran), dipakai hasil pencarian biasa.</summary>
+    /// horizontal diutamakan yang tidak memecah kata (lihat
+    /// ringkasan kelas); vertikal diutamakan SATU kolom lurus ke
+    /// bawah selama ukurannya masih terbaca (≥ 12 px) — teks yang
+    /// terlalu panjang untuk satu kolom jatuh ke pencarian biasa
+    /// (banyak kolom, kanan ke kiri). Bila tidak ada yang muat,
+    /// dipakai hasil pencarian biasa.</summary>
     private static Layout FitLayout(
         string text, TypesetStyle style, SKTypeface typeface,
         float boxW, float boxH)
     {
         if (style.FontSize > 0)
             return BuildLayout(text, style, typeface, (float)style.FontSize, boxW, boxH);
-        if (!style.Vertical)
+        if (style.Vertical)
+        {
+            var single = SearchFit(text, style, typeface, boxW, boxH,
+                requireNoSplit: false, maxColumns: 1);
+            if (single is not null && single.Size >= 12f)
+                return single;
+        }
+        else
         {
             var unsplit = SearchFit(text, style, typeface, boxW, boxH,
                 requireNoSplit: true);
@@ -433,13 +407,15 @@ public static class TypesetService
     /// <summary>Pencarian biner ukuran terbesar yang tata letaknya
     /// muat di kotak. Dengan <paramref name="requireNoSplit"/>, hanya
     /// tata letak tanpa kata terpecah yang diterima dan null
-    /// dikembalikan bila tidak ada. Predikat "muat (dan utuh)" adalah
-    /// awalan terhadap ukuran — kata yang muat utuh pada satu ukuran
-    /// muat utuh pada semua ukuran lebih kecil, dan tinggi isi hanya
-    /// naik seiring ukuran — jadi pencarian biner sah.</summary>
+    /// dikembalikan bila tidak ada. Dengan
+    /// <paramref name="maxColumns"/> &gt; 0 (vertikal), hanya tata
+    /// letak dengan jumlah kolom ≤ itu yang diterima. Predikat
+    /// "muat (dan utuh, dan kolom terbatas)" adalah awalan terhadap
+    /// ukuran — yang muat pada satu ukuran muat pada semua ukuran
+    /// lebih kecil — jadi pencarian biner sah.</summary>
     private static Layout? SearchFit(
         string text, TypesetStyle style, SKTypeface typeface,
-        float boxW, float boxH, bool requireNoSplit)
+        float boxW, float boxH, bool requireNoSplit, int maxColumns = 0)
     {
         float hi = Math.Clamp(Math.Max(boxW, boxH) * 1.6f, 16f, 1200f);
         float lo = 4f;
@@ -449,7 +425,8 @@ public static class TypesetService
             float mid = (lo + hi) / 2;
             var candidate = BuildLayout(text, style, typeface, mid, boxW, boxH);
             bool ok = candidate.Fits(style.Vertical, boxW, boxH)
-                      && (!requireNoSplit || !candidate.SplitWord);
+                      && (!requireNoSplit || !candidate.SplitWord)
+                      && (maxColumns <= 0 || candidate.Columns.Count <= maxColumns);
             if (ok)
             {
                 best = candidate;
@@ -462,7 +439,7 @@ public static class TypesetService
         }
         // Sama seperti perilaku lama: bila tidak ada yang muat sama
         // sekali, gambar pada ukuran minimum apa adanya.
-        return best ?? (requireNoSplit
+        return best ?? (requireNoSplit || maxColumns > 0
             ? null
             : BuildLayout(text, style, typeface, lo, boxW, boxH));
     }
