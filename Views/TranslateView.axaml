@@ -1,0 +1,143 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TintaStudio.ViewModels"
+             xmlns:svc="using:TintaStudio.Services"
+             x:Class="TintaStudio.Views.TranslateView"
+             x:DataType="vm:MainWindowViewModel">
+    <DockPanel>
+        <!-- Toolbar atas: penyedia + bahasa tujuan + pengaturan kiri,
+             judul tengah, navigasi chevron – X/Y – chevron kanan -->
+        <Border DockPanel.Dock="Top" Background="#101216"
+                BorderBrush="#26292F" BorderThickness="0,0,0,1" Padding="10,7">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <ComboBox ItemsSource="{Binding Providers}"
+                              SelectedItem="{Binding SelectedProvider}" Width="150">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="svc:ProviderInfo">
+                                <TextBlock Text="{Binding DisplayName}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <ComboBox ItemsSource="{Binding TargetLanguages}"
+                              SelectedItem="{Binding SelectedTargetLanguage}" Width="112">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="svc:TargetLanguage">
+                                <TextBlock Text="{Binding DisplayName}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button x:Name="TranslateSettingsButton" Content="Pengaturan Key &amp; Model" />
+                    <Button x:Name="TranslatePageButton" Classes="primary"
+                            Content="Terjemahkan Halaman Ini" />
+                    <Button x:Name="TranslateChapterButton" Content="Terjemahkan Satu Bab" />
+                    <Button x:Name="CancelTranslateButton" Content="Batal"
+                            IsVisible="{Binding IsTranslating}" />
+                    <ProgressBar IsVisible="{Binding IsTranslating}"
+                                 Value="{Binding TranslateProgress}" Minimum="0" Maximum="1"
+                                 Width="110" Height="6" VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding ChapterTitle}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           FontSize="13" FontWeight="SemiBold"
+                           TextTrimming="CharacterEllipsis" Margin="12,0" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                    <Button Classes="tool" Content="&#x276E;" Command="{Binding PrevPageCommand}" />
+                    <TextBlock Text="{Binding PageIndicatorShort}" VerticalAlignment="Center"
+                               FontSize="13" MinWidth="34" TextAlignment="Center" />
+                    <Button Classes="tool" Content="&#x276F;" Command="{Binding NextPageCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Bar status penyedia + petunjuk dua mode + aksi poles -->
+        <Border DockPanel.Dock="Top" Background="#101216"
+                BorderBrush="#26292F" BorderThickness="0,0,0,1" Padding="10,5">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <TextBlock Text="{Binding ProviderStatusText}" Foreground="#2DD4BF"
+                           FontSize="12" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Foreground="#8A939E" FontSize="12"
+                           VerticalAlignment="Center" Margin="16,0,8,0"
+                           Text="Dua mode: Otomatis (per blok/halaman/bab) atau Manual — ketik di kolom terjemahan, tersimpan tanpa key." />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                    <Button x:Name="PolishPageButton" Classes="tool" Content="Poles Halaman Ini"
+                            ToolTip.Tip="Poles AI: buat terjemahan halaman ini lebih natural (teks lama tersimpan sebagai cadangan)" />
+                    <Button x:Name="PolishChapterButton" Classes="tool" Content="Poles Satu Bab"
+                            ToolTip.Tip="Poles AI satu bab (blok manual &amp; tanpa terjemahan dilewati)" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid ColumnDefinitions="196,*,430" Margin="12">
+            <!-- Panel halaman kiri -->
+            <Border Background="#17191F" CornerRadius="7">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Classes="section" Text="HALAMAN"
+                               Margin="10,8,10,4" />
+                    <ListBox ItemsSource="{Binding Pages}"
+                             SelectedIndex="{Binding SelectedPageIndex}"
+                             Background="Transparent"
+                             ItemTemplate="{StaticResource PageThumbTemplate}" />
+                </DockPanel>
+            </Border>
+
+            <!-- Kanvas halaman -->
+            <Border Grid.Column="1" Background="#0C0D10" Margin="12,0" CornerRadius="7">
+                <Image Source="{Binding CurrentPageBitmap}" Stretch="Uniform" Margin="10" />
+            </Border>
+
+            <!-- Panel kanan: daftar blok sumber → terjemahan -->
+            <ScrollViewer Grid.Column="2">
+                <StackPanel Spacing="8" Margin="2,0,6,0">
+                    <TextBlock Classes="section" Text="{Binding TranslateBlocksHeader}" />
+                    <ItemsControl ItemsSource="{Binding TranslateBlocks}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:TranslateBlockItemViewModel">
+                                <Border Background="#17191F" CornerRadius="7"
+                                        Padding="10,8" Margin="0,0,0,8">
+                                    <StackPanel Spacing="5">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="{Binding Meta}"
+                                                       Foreground="#8A939E" FontSize="11"
+                                                       VerticalAlignment="Center" />
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                                        Spacing="4">
+                                                <Button Classes="tool"
+                                                        Content="Terjemahkan blok ini"
+                                                        Command="{Binding TranslateCommand}"
+                                                        ToolTip.Tip="Mode otomatis: terjemahkan hanya blok ini (dengan konteks halamannya)" />
+                                                <Button Classes="tool"
+                                                        Content="Poles AI"
+                                                        Command="{Binding PolishCommand}"
+                                                        IsEnabled="{Binding HasTranslation}"
+                                                        ToolTip.Tip="Poles AI: buat terjemahan blok ini lebih natural" />
+                                                <Button Classes="tool"
+                                                        Content="Urungkan Poles"
+                                                        Command="{Binding UndoPolishCommand}"
+                                                        IsVisible="{Binding HasBackup}"
+                                                        ToolTip.Tip="Kembalikan teks sebelum poles terakhir" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock Text="Sumber (OCR — bisa disunting)"
+                                                   Foreground="#8A939E" FontSize="11" />
+                                        <TextBox Text="{Binding SourceText}"
+                                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                                 Height="52" />
+                                        <TextBlock Text="Terjemahan (otomatis atau ketik manual — tersimpan otomatis)"
+                                                   Foreground="#8A939E" FontSize="11" />
+                                        <TextBox Text="{Binding TranslationText}"
+                                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                                 Height="52"
+                                                 PlaceholderText="Belum diterjemahkan" />
+                                        <TextBlock Text="{Binding StatusLine}" FontSize="11"
+                                                   Foreground="#2DD4BF" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </DockPanel>
+</UserControl>

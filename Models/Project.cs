@@ -15,8 +15,11 @@ public sealed class TintaProject
 
     /// <summary>Versi skema format proyek saat ini.
     /// v2 (Tahap 2): bab memuat halaman + blok teks deteksi/OCR.
-    /// v3 (Tahap 3): halaman memuat operasi pembersihan + sapuan manual.</summary>
-    public const int CurrentVersion = 3;
+    /// v3 (Tahap 3): halaman memuat operasi pembersihan + sapuan manual.
+    /// v4 (Tahap 4): blok memuat hasil terjemahan + cap penyedia.
+    /// CATATAN: API key TIDAK PERNAH disimpan di berkas proyek —
+    /// key hanya hidup di ~/.config/tinta-studio/keys.json (0600).</summary>
+    public const int CurrentVersion = 4;
 
     public string Format { get; set; } = FormatMarker;
     public int Version { get; set; } = CurrentVersion;
@@ -207,4 +210,29 @@ public sealed class TextBlock
 
     /// <summary>Skor deteksi 0..1 dari model detektor.</summary>
     public double DetectionScore { get; set; }
+
+    /// <summary>Hasil terjemahan blok ini (Tahap 4); dapat disunting
+    /// pengguna. Null/kosong = belum diterjemahkan. Berkas v1–v3
+    /// tidak memuat ini → null; aman dimuat.</summary>
+    public string? Translation { get; set; }
+
+    /// <summary>Cap asal terjemahan: "NamaPenyedia • model" yang
+    /// menghasilkan terjemahan terakhir (Tahap 4).</summary>
+    public string? TranslatedBy { get; set; }
+
+    /// <summary>Waktu terjemahan terakhir dihasilkan (UTC).</summary>
+    public DateTime? TranslatedAt { get; set; }
+
+    /// <summary>Alasan kegagalan terjemahan terakhir untuk blok ini;
+    /// null bila percobaan terakhir berhasil / belum pernah dicoba.
+    /// Hanya untuk ditampilkan di UI — bukan bagian hasil.</summary>
+    public string? TranslationError { get; set; }
+
+    /// <summary>Cadangan satu tingkat teks terjemahan sebelum Poles
+    /// AI terakhir (Tahap 4) — dasar tombol "Urungkan Poles".
+    /// Null = tidak ada poles yang bisa diurungkan.</summary>
+    public string? TranslationBackup { get; set; }
+
+    /// <summary>Cap asal milik teks di TranslationBackup.</summary>
+    public string? TranslationBackupBy { get; set; }
 }

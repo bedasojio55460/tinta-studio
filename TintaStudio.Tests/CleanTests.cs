@@ -235,7 +235,7 @@ public sealed class CleanTests
             project.Save(path);
 
             var loaded = TintaProject.Load(path);
-            Assert.Equal(3, loaded.Version);
+            Assert.Equal(TintaProject.CurrentVersion, loaded.Version);
             var loadedPage = loaded.Chapters[0].Pages[0];
             var op = Assert.Single(loadedPage.CleanOps);
             Assert.Equal(CleanMode.Solid, op.Mode);

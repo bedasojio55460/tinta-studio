@@ -13,7 +13,7 @@ Semua padanan di bawah ditulis ulang dari nol dengan komponen publik.
 | Bersihkan bubble: blok solid + inpaint | Blok warna solid (eyedropper) + inpaint LaMA + kuas manual | LaMA ONNX (OnnxRuntime) + SkiaSharp | 3 |
 | Terjemahan BYOK: Gemini, GPT-4o, OpenRouter | BYOK Gemini → Groq → OpenRouter (key pengguna; pola Gema) | API publik penyedia | 4 |
 | Terjemahan lokal Ollama / LM Studio (offline) | Backend lokal Ollama / LM Studio | API lokal pengguna | 4 |
-| Konteks satu halaman (dialog natural) | Prompt konteks halaman penuh + konteks bab | — | 4 |
+| Konteks satu halaman (dialog natural) | Prompt konteks halaman penuh (semua blok sehalaman satu prompt bernomor) | — | 4 |
 | Typesetting: preset font, teks vertikal CJK, outline stroke, spasi huruf | Editor kanvas: kotak teks, preset font, vertikal, stroke, spasi | SkiaSharp (render teks) | 5 |
 | Outline bubble vektor (anchor, kurva, cusp/smooth) | Poligon bubble dapat disunting (versi sederhana dulu) | Kanvas sendiri | 5 |
 | Ekspor bab gambar | Ekspor CBZ / PDF / folder; format gambar pilihan (asli/JPG/WebP/PNG) | SkiaSharp, SharpCompress | 6 |
@@ -21,5 +21,9 @@ Semua padanan di bawah ditulis ulang dari nol dengan komponen publik.
 
 Status: Tahap 1 ✅ (v0.1.0), Tahap 2 ✅ (v0.2.0), Tahap 3 ✅ (v0.3.0 —
 blok solid + eyedropper, inpaint LaMA manga ONNX, kuas/penghapus
-manual; semua non-destruktif, operasi tersimpan di proyek v3).
+manual; semua non-destruktif, operasi tersimpan di proyek v3),
+Tahap 4 ✅ (v0.4.0 — terjemahan dua mode otomatis/manual, BYOK
+Gemini/Groq/OpenRouter multi-key + rotasi & cooldown, lokal
+Ollama/LM Studio, konteks satu halaman, Poles AI + urungkan,
+proyek v4).
 | Maskot & branding Chisa | **Tidak disalin** — nama & logo original (Tinta Studio) | Logo programatis | 1 |

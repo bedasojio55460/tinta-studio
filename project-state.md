@@ -244,3 +244,101 @@
     blok — teks yang meluber keluar kotak deteksi tidak ikut
     terhapus; (5) CBR & AVIF: batas Tahap 1 yang sama.
     Berikutnya: Tahap 4 — Terjemahan BYOK + lokal.
+- 2026-10-26 ~21:5x–2026-10-27 ~05:2x PDT: **Tahap 4 (v0.4.0)
+  SELESAI — Terjemahan dua mode (otomatis + manual), BYOK
+  multi-key + rotasi, lokal, Poles AI.**
+  - **Layanan** (`Services/Translate.cs`): lima penyedia —
+    Gemini (REST generateContent, header x-goog-api-key,
+    `generativelanguage.googleapis.com/v1beta`,
+    `gemini-2.5-flash`), Groq (`api.groq.com/openai/v1`,
+    `llama-3.3-70b-versatile`), OpenRouter (`openrouter.ai/api/v1`,
+    `meta-llama/llama-3.3-70b-instruct:free`), Ollama
+    (`localhost:11434/v1`, `llama3.1`), LM Studio
+    (`localhost:1234/v1`). Base URL/model per penyedia bisa
+    diatur. Prompt konteks **satu halaman penuh** (blok bernomor
+    urut baca Tahap 2; suhu 0,3; wajib JSON ketat
+    `[{"id":n,"text":...}]`); parsing toleran pagar kode + coba
+    ulang sekali khusus nomor yang hilang; sisa gagal ditandai per
+    blok beralasan. Bahasa tujuan id (bawaan) / en.
+  - **Multi-key + rotasi** (`Services/AppSettings.cs`): keys.json
+    = DAFTAR key per penyedia (0600; cooldown ikut disimpan
+    sebagai cap waktu di keys.json agar bertahan antar-jalan;
+    status buruk hanya di memori sesi). 429/RESOURCE_EXHAUSTED →
+    cooldown (Retry-After didahulukan, selain itu 60 dtk) + coba
+    key berikutnya; 401/403 → key buruk & dilewati; galat lain
+    dilaporkan apa adanya tanpa rotasi. Semua key habis →
+    AllKeysExhaustedException ("Semua key … kena limit").
+    **Tunggu & lanjut**: mode bab menjeda sampai key paling awal
+    pulih (callback hitung mundur "Menunggu limit pulih… ±N dtk —
+    key #k" di UI/CLI), Batal tetap berhenti bersih. **Jeda antar
+    halaman** dapat diatur (pengaturan, bawaan 2 dtk, 0 = mati),
+    berlaku antar halaman & sebelum coba-ulang; durasi
+    dapat disuntik untuk tes.
+  - **Bab**: proyek disimpan sesudah SETIAP halaman; blok yang
+    sudah berterjemahan dilewati (ringkasan menyebut jumlah
+    dilewati); blok gagal dicoba lagi. **Per blok**: tombol
+    "Terjemahkan blok ini" memakai konteks halamannya, mengisi
+    hanya blok itu.
+  - **Dua mode**: Manual penuh tanpa key (ketik di kolom
+    terjemahan → tersimpan otomatis, cap "Manual", dihitung sudah
+    diterjemahkan, tak pernah memicu galat key). **Poles AI**
+    (per blok/halaman/bab): prompt kirim SUMBER + terjemahan saat
+    ini, hasil menggantikan terjemahan, versi lama disimpan satu
+    tingkat di `TranslationBackup` (+ cap cadangan), tombol
+    "Urungkan Poles"; cap "… • poles". Jalan poles bab melewati
+    blok kosong + blok "Manual".
+  - **Skema proyek v4**: blok + `Translation`, `TranslatedBy`
+    (mis. "Groq • llama-3.3-70b-versatile • key #2" / "Manual"),
+    `TranslatedAt`, `TranslationError`, `TranslationBackup`,
+    `TranslationBackupBy`. v1/v2/v3 tetap termuat (teruji v3).
+    Pengaturan di `~/.config/tinta-studio/` (settings.json +
+    keys.json terpisah 0600; dialog menampilkan key bermasker
+    "Key #n — ••••{4 terakhir}", status "N key • aktif #k").
+    Key tidak pernah masuk proyek/git/log/CLI (teruji: berkas
+    proyek tak mengandung nilai dummy key).
+  - **UI + CLI**: halaman Terjemahan aktif (bahasa desain Tahap
+    2/3; toolbar penyedia/bahasa/Pengaturan/Terjemahkan
+    Halaman/Bab/Poles Halaman/Bab/Batal + kemajuan; daftar blok
+    dua kolom yang bisa disunting + tombol per blok; teks
+    petunjuk dua mode). CLI `--translate <bab> [--provider …]
+    [--target id|en]` — OCR ja dulu bila belum ada blok, simpan
+    per halaman, ringkasan per halaman + total (termasuk
+    dilewati); tanpa key BYOK → pesan jelas, kode keluar 2.
+    Footer/VERSION → 0.4.0.
+  - **Tes: 53 total — 52 lolos, 0 gagal, 1 skip jujur** (31 lama
+    tetap hijau + 22 baru: bentuk permintaan OpenAI-kompatibel &
+    Gemini + pemetaan/cap/round-trip v4/key-tak-masuk-proyek,
+    pagar kode, coba-ulang nomor hilang, respons rusak, rotasi
+    429 dua penyedia, semua-429, 401-buruk, 400-tanpa-rotasi,
+    key-kosong, bab lewati+simpan-per-halaman, tunggu-lanjut
+    Retry-After (cooldown suntik 30 dtk, selesai <10 dtk), jeda
+    antar halaman & coba-ulang terukur ≥0,85 dtk, blok tunggal
+    konteks penuh, poles+backup+undo persis, poles lewati
+    kosong, poles bab lewati Manual, muat v3, CLI key-kosong).
+    Build Release bersih; publish win-x64 single-file ulang:
+    **TintaStudio.exe 124.547.665 byte** (PE32+ GUI). Screenshot
+    bukti: tmp/tinta-v04-ui.png — halaman Terjemahan bab demo
+    dengan kolom sumber → terjemahan TERISI dari jalan stub
+    lokal nyata (OCR asli + TranslateService; こんにちは→"Halo!",
+    ありがとう→"Terima kasih!").
+  - **Catatan lingkungan penting**: kebijakan jaringan sandbox
+    VM ini (Direct network protocols: other_tcp = Deny) menolak
+    koneksi TCP keluar dari PROSES .NET — bahkan ke 127.0.0.1 —
+    terbukti dengan probe (TcpClient mentah dibalas banner
+    penolakan; python/curl tidak terpengaruh). Karena itu stub
+    tes diwujudkan sebagai **HttpMessageHandler dalam-proses**
+    yang menerima HttpRequestMessage persis (URL/header/badan
+    divalidasi sama) menggantikan HttpListener, dan tes CLI
+    loopback di-skip bersyarat probe (di VM ini skip; di mesin
+    normal jalan). Aplikasi di PC pengguna tidak terpengaruh —
+    HttpClient standar.
+  - Batas jujur: (1) kualitas terjemahan penyedia ASLI belum
+    diuji — menunggu Ando dengan key-nya di PC-nya; di VM semua
+    via stub; (2) CLI --translate ujung-ke-ujung via soket belum
+    terverifikasi DI VM ini karena batas di atas (jalur layanan
+    yang sama terverifikasi penuh via stub handler; CLI teruji
+    jalur key-kosong); (3) cooldown antar-jalan disimpan, status
+    key buruk tidak (sesi saja — disengaja, key bisa pulih/diganti
+    di antara jalan); (4) poles menyimpan cadangan hanya satu
+    tingkat; (5) CBR & AVIF: batas Tahap 1 yang sama.
+    Berikutnya: Tahap 5 — Editor typesetting.

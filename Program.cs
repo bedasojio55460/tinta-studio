@@ -36,6 +36,15 @@ internal static class Program
             Environment.ExitCode = RunClean(args);
             return;
         }
+        // Mode CLI: --translate <berkas/folder komik> [--provider <id>]
+        // [--target id|en] — terjemahkan blok OCR tersimpan (deteksi
+        // dulu bila belum ada blok); proyek disimpan sesudah SETIAP
+        // halaman; blok yang sudah berterjemahan dilewati.
+        if (args.Length >= 2 && args[0] == "--translate")
+        {
+            Environment.ExitCode = RunTranslate(args);
+            return;
+        }
         // Mode CLI: --download-models — unduh semua model katalog.
         if (args.Length >= 1 && args[0] == "--download-models")
         {
@@ -51,6 +60,8 @@ internal static class Program
             Console.WriteLine("  TintaStudio --ocr <path> [--lang ja|ko|ch]  deteksi + OCR, simpan ke proyek");
             Console.WriteLine("  TintaStudio --clean <path> [--mode solid|inpaint] [--out <folder>] [--lang ja|ko|ch]");
             Console.WriteLine("                                           bersihkan bubble, tulis gambar bersih");
+            Console.WriteLine("  TintaStudio --translate <path> [--provider gemini|groq|openrouter|ollama|lmstudio] [--target id|en]");
+            Console.WriteLine("                                           terjemahkan blok OCR (key dari Pengaturan aplikasi)");
             Console.WriteLine("  TintaStudio --download-models            unduh model deteksi/OCR/inpaint ke cache");
             return;
         }
@@ -312,6 +323,157 @@ internal static class Program
                 // berkas sementara gagal dihapus bukan masalah besar
             }
         }
+    }
+
+    private static int RunTranslate(string[] args)
+    {
+        string path = args[1];
+        string? providerId = null;
+        string? target = null;
+        for (int i = 2; i + 1 < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--provider": providerId = args[i + 1]; break;
+                case "--target": target = args[i + 1]; break;
+            }
+        }
+
+        var settings = AppConfig.LoadSettings();
+        ProviderInfo provider;
+        TargetLanguage targetLang;
+        try
+        {
+            provider = TranslateService.ProviderById(providerId ?? settings.Provider);
+            targetLang = TranslateService.TargetByCode(target ?? settings.TargetLanguage);
+        }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 2;
+        }
+        var ps = settings.For(provider.Id);
+        if (provider.RequiresKey && AppSecrets.KeyCount(provider.Id) == 0)
+        {
+            Console.Error.WriteLine(
+                $"Error: API key {provider.DisplayName} belum diisi. Isi dulu " +
+                "lewat dialog Pengaturan Key & Model di aplikasi (halaman " +
+                "Terjemahan) — key tidak pernah dibaca dari argumen/lingkungan.");
+            return 2;
+        }
+        var options = new TranslateOptions(provider, ps.BaseUrl, ps.Model,
+            targetLang.Code, TimeSpan.FromSeconds(settings.RequestDelaySeconds));
+
+        var workDir = Path.Combine(
+            Path.GetTempPath(), "tinta-studio-translate-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var chapter = ComicImport.OpenChapter(path, workDir);
+            var (project, projectChapter) = ProjectStore.GetOrCreate(chapter);
+
+            if (projectChapter.Pages.Sum(p => p.Blocks.Count) == 0)
+            {
+                using var pipeline = new DetectOcrPipeline();
+                var ocrProgress = new Progress<(int Done, int Total)>(p =>
+                    Console.Error.WriteLine($"  deteksi halaman {p.Done}/{p.Total}…"));
+                pipeline.AnalyzeChapterAsync(
+                    chapter, projectChapter, OcrLanguage.Japanese, ocrProgress,
+                    CancellationToken.None).GetAwaiter().GetResult();
+                ProjectStore.Save(project, chapter.SourcePath);
+            }
+
+            var service = new TranslateService { WaitForKeyRecovery = true };
+            int lastWaitSecond = -1;
+            service.WaitCallback = (remaining, keyNumber) =>
+            {
+                int s = (int)Math.Ceiling(remaining.TotalSeconds);
+                if (s != lastWaitSecond)
+                {
+                    lastWaitSecond = s;
+                    Console.WriteLine(
+                        $"  Menunggu limit pulih… ±{s} dtk — key #{keyNumber}");
+                }
+            };
+            Console.WriteLine(
+                $"Menerjemahkan: {chapter.Title} — {provider.DisplayName} " +
+                $"({(string.IsNullOrWhiteSpace(ps.Model) ? "model bawaan server" : ps.Model)}), " +
+                $"tujuan {targetLang.DisplayName}");
+            var progress = new Progress<(int Done, int Total)>(p =>
+                Console.Error.WriteLine($"  halaman {p.Done}/{p.Total} selesai"));
+            ChapterTranslationSummary summary;
+            try
+            {
+                summary = service.TranslateChapterAsync(
+                    projectChapter, options, progress,
+                    _ => ProjectStore.Save(project, chapter.SourcePath),
+                    CancellationToken.None).GetAwaiter().GetResult();
+            }
+            catch (AllKeysExhaustedException)
+            {
+                // Halaman yang selesai sudah disimpan per halaman;
+                // ringkasan dicetak dari keadaan proyek saat ini.
+                summary = CountSummary(projectChapter);
+                Console.Error.WriteLine(
+                    "Berhenti di tengah bab: semua key kena limit/tidak sah. " +
+                    "Halaman yang sudah jadi tetap tersimpan.");
+            }
+            foreach (var page in projectChapter.Pages.OrderBy(p => p.Index))
+            {
+                int ok = page.Blocks.Count(b => !string.IsNullOrWhiteSpace(b.Translation));
+                int fail = page.Blocks.Count(b => b.TranslationError is not null);
+                Console.WriteLine(
+                    $"Halaman {page.Index + 1}: {ok} blok diterjemahkan, {fail} gagal");
+            }
+            Console.WriteLine(
+                $"Terjemahan selesai: {summary.Translated} blok diterjemahkan, " +
+                $"{summary.Failed} gagal, {summary.Skipped} dilewati (sudah ada " +
+                $"terjemahan), {summary.PagesProcessed} halaman.");
+            return summary.Failed > 0 && summary.Translated == 0 ? 1 : 0;
+        }
+        catch (ModelMissingException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 3;
+        }
+        catch (ComicImportException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            if (Environment.GetEnvironmentVariable("TINTA_DEBUG") == "1")
+                Console.Error.WriteLine(ex.ToString());
+            return 1;
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(workDir)) Directory.Delete(workDir, recursive: true);
+            }
+            catch (Exception)
+            {
+                // berkas sementara gagal dihapus bukan masalah besar
+            }
+        }
+    }
+
+    private static ChapterTranslationSummary CountSummary(
+        Models.ProjectChapter chapter)
+    {
+        int translated = 0, failed = 0, skipped = 0;
+        foreach (var page in chapter.Pages)
+        {
+            translated += page.Blocks.Count(
+                b => !string.IsNullOrWhiteSpace(b.Translation));
+            failed += page.Blocks.Count(b => b.TranslationError is not null);
+            skipped += page.Blocks.Count(
+                b => !string.IsNullOrWhiteSpace(b.Translation));
+        }
+        return new ChapterTranslationSummary(
+            chapter.Pages.Count, translated, failed, skipped);
     }
 
     private static int RunDownloadModels()

@@ -11,6 +11,69 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.4.0 — Tahap 4 (Terjemahan)
+
+- **Dua mode terjemahan**: **Otomatis** (penyedia AI, per blok /
+  halaman / bab) dan **Manual penuh tanpa key** — ketik langsung di
+  kolom terjemahan tiap blok, tersimpan otomatis dengan cap
+  "Manual". Suntingan manual sesudah hasil otomatis tidak ditimpa
+  jalan otomatis berikutnya (bloknya sudah berterjemahan).
+- **Penyedia**: BYOK **Gemini** (`gemini-2.5-flash`), **Groq**
+  (`llama-3.3-70b-versatile`), **OpenRouter**
+  (`meta-llama/llama-3.3-70b-instruct:free`) + lokal **Ollama**
+  (`http://localhost:11434/v1`, `llama3.1`) dan **LM Studio**
+  (`http://localhost:1234/v1`). Base URL & model bisa diatur per
+  penyedia. Bahasa tujuan: **Indonesia** (bawaan) / Inggris.
+  Konteks **satu halaman penuh**: semua blok sehalaman dikirim dalam
+  satu prompt bernomor (suhu 0,3), jawaban wajib JSON ketat
+  `[{"id":n,"text":...}]`; parsing toleran pagar kode; blok yang
+  hilang dari jawaban dicoba-ulang sekali khusus blok itu; blok
+  yang tetap gagal ditandai dengan alasan — blok lain tak ikut
+  hilang.
+- **Multi-key + rotasi otomatis** (Gemini/Groq/OpenRouter): key
+  bisa diisi banyak per penyedia; 429/kuota → key masuk masa
+  pendinginan (hormati header `Retry-After`) dan permintaan dicoba
+  key berikutnya; 401/403 → key ditandai buruk & dilewati; galat
+  lain (mis. 400) dilaporkan apa adanya. Key **hanya** di
+  `~/.config/tinta-studio/keys.json` (izin 0600, daftar per
+  penyedia) — tidak pernah masuk proyek/git/log/CLI. Status UI
+  hanya menampilkan jumlah & nomor key aktif ("3 key • aktif #2").
+  Cooldown disimpan sebagai cap waktu di keys.json agar bertahan
+  antar-jalan. Pengaturan lain di
+  `~/.config/tinta-studio/settings.json`.
+- **Tahan limit**: "Terjemahkan Satu Bab" **menyimpan proyek
+  sesudah SETIAP halaman** (berhenti di tengah aman), **melewati
+  blok yang sudah berterjemahan** (tidak membakar kuota; blok gagal
+  dicoba lagi) dan melaporkan jumlah yang dilewati; **jeda antar
+  halaman bisa diatur** (bawaan 2 detik, 0 = tanpa jeda, berlaku
+  juga sebelum coba-ulang); bila semua key sedang cooldown, bab
+  **menjeda & melanjutkan sendiri** saat key paling awal pulih,
+  dengan status hitung mundur "Menunggu limit pulih… ±N dtk —
+  key #k". Tombol Batal menghentikan bersih kapan pun.
+- **Poles AI**: per blok / halaman / bab — mengirim teks sumber +
+  terjemahan saat ini, hasil poles menggantikan terjemahan tetapi
+  versi lama disimpan satu tingkat (`TranslationBackup`) dengan
+  tombol **Urungkan Poles** per blok. Cap hasil poles menyebut
+  "• poles". Blok "Manual" tidak dipoles oleh jalan bab (hanya
+  poles eksplisit per blok/halaman). Blok tanpa terjemahan
+  dilewati.
+- Proyek naik ke skema **v4** (blok: `Translation`, `TranslatedBy`,
+  `TranslatedAt`, cadangan poles); berkas **v1/v2/v3 tetap
+  termuat**. Halaman **Terjemahan** aktif (toolbar: penyedia,
+  bahasa, Pengaturan Key & Model, Terjemahkan Halaman/Bab, Poles
+  Halaman/Bab; daftar blok dua kolom sumber → terjemahan).
+  CLI: `--translate <bab> [--provider gemini|groq|openrouter|ollama|lmstudio] [--target id|en]`
+  (OCR ja dijalankan dulu bila proyek belum punya blok; tanpa key
+  BYOK → pesan jelas, kode keluar 2).
+- Kualitas terjemahan penyedia asli **menunggu uji di PC pengguna
+  dengan key-nya**; di VM pengembangan semua jalur terverifikasi
+  lewat **stub lokal** (tiruan kompatibel-OpenAI & Gemini yang
+  memvalidasi bentuk permintaan persis). Catatan sandbox VM:
+  kebijakan jaringan VM menolak koneksi TCP dari proses .NET
+  (bahkan loopback), jadi stub diwujudkan sebagai handler HTTP
+  dalam-proses dan tes CLI soket-sungguhan di-skip jujur di sini —
+  di mesin normal jalur HttpClient standarnya sama.
+
 ## Status: v0.3.0 — Tahap 3 (Pembersihan Bubble)
 
 - **Tiga cara membersihkan teks bubble**, semuanya **non-destruktif**

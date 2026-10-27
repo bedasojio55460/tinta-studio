@@ -19,6 +19,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private bool _isLibraryActive = true;
     private bool _isDetectActive;
     private bool _isCleanActive;
+    private bool _isTranslateActive;
     private bool _isBusy;
     private Chapter? _currentChapter;
     private int _selectedPageIndex = -1;
@@ -79,7 +80,17 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    public bool IsViewerActive => !IsLibraryActive && !IsDetectActive && !IsCleanActive;
+    public bool IsTranslateActive
+    {
+        get => _isTranslateActive;
+        private set
+        {
+            if (Set(ref _isTranslateActive, value)) Raise(nameof(IsViewerActive));
+        }
+    }
+
+    public bool IsViewerActive => !IsLibraryActive && !IsDetectActive
+        && !IsCleanActive && !IsTranslateActive;
 
     public LibraryEntry? SelectedLibraryEntry
     {
@@ -120,6 +131,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 Raise(nameof(CurrentPageHeight));
                 LoadBlocksForCurrentPage();
                 RefreshCleanStateForCurrentPage();
+                LoadTranslateForCurrentPage();
                 PrevPageCommand.RaiseCanExecuteChanged();
                 NextPageCommand.RaiseCanExecuteChanged();
             }
@@ -157,6 +169,13 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 if (page is not null)
                     text += $" • {page.CleanOps.Count} blok bersih di halaman ini";
             }
+            if (IsTranslateActive)
+            {
+                var page = CurrentProjectPage();
+                if (page is not null)
+                    text += $" • {page.Blocks.Count(b => !string.IsNullOrWhiteSpace(b.Translation))}" +
+                            $"/{page.Blocks.Count} blok terterjemahkan di halaman ini";
+            }
             return text;
         }
     }
@@ -173,6 +192,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     {
         IsDetectActive = false;
         IsCleanActive = false;
+        IsTranslateActive = false;
         IsLibraryActive = true;
     }
 
@@ -180,6 +200,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     {
         IsDetectActive = false;
         IsCleanActive = false;
+        IsTranslateActive = false;
         IsLibraryActive = false;
     }
 
@@ -187,6 +208,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     {
         IsLibraryActive = false;
         IsCleanActive = false;
+        IsTranslateActive = false;
         IsDetectActive = true;
         RefreshModelStatuses();
         LoadBlocksForCurrentPage();

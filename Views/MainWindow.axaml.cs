@@ -12,6 +12,7 @@ public partial class MainWindow : Window
         MenuViewer.Click += (_, _) => ViewModel?.ShowViewer();
         MenuDetect.Click += (_, _) => ViewModel?.ShowDetect();
         MenuClean.Click += (_, _) => ViewModel?.ShowClean();
+        MenuTranslate.Click += (_, _) => ViewModel?.ShowTranslate();
         Opened += OnOpened;
     }
 
@@ -27,12 +28,13 @@ public partial class MainWindow : Window
                 if (args.PropertyName is nameof(MainWindowViewModel.IsLibraryActive)
                     or nameof(MainWindowViewModel.IsViewerActive)
                     or nameof(MainWindowViewModel.IsDetectActive)
-                    or nameof(MainWindowViewModel.IsCleanActive))
+                    or nameof(MainWindowViewModel.IsCleanActive)
+                    or nameof(MainWindowViewModel.IsTranslateActive))
                     UpdateMenuStyles();
             };
 
             // Alat uji & screenshot: TINTA_OPEN=<jalur> membuka bab otomatis,
-            // TINTA_VIEW=library|viewer|detect|clean memilih halaman awal.
+            // TINTA_VIEW=library|viewer|detect|clean|translate memilih halaman awal.
             var autoOpen = Environment.GetEnvironmentVariable("TINTA_OPEN");
             if (!string.IsNullOrWhiteSpace(autoOpen))
                 await vm.OpenChapterPathAsync(autoOpen);
@@ -40,6 +42,7 @@ public partial class MainWindow : Window
             {
                 case "detect": vm.ShowDetect(); break;
                 case "clean": vm.ShowClean(); break;
+                case "translate": vm.ShowTranslate(); break;
                 case "viewer": vm.ShowViewer(); break;
                 case "library": vm.ShowLibrary(); break;
             }
@@ -52,6 +55,7 @@ public partial class MainWindow : Window
         SetActive(MenuViewer, ViewModel?.IsViewerActive ?? false);
         SetActive(MenuDetect, ViewModel?.IsDetectActive ?? false);
         SetActive(MenuClean, ViewModel?.IsCleanActive ?? false);
+        SetActive(MenuTranslate, ViewModel?.IsTranslateActive ?? false);
     }
 
     private static void SetActive(Button button, bool active)
