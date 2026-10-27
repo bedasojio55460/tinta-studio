@@ -265,6 +265,63 @@ public sealed class TypesetTests
         Assert.Equal(0, TypesetService.AutoTypesetPage(page));
     }
 
+    [Fact]
+    public void AutoTypeset_VerticalBlock_WidensBox_InkByWordInside()
+    {
+        // Blok OCR vertikal asli fixture: kotak 72×326 sesempit kolom
+        // teks vertikalnya, terjemahan Indonesia di-typeset horizontal.
+        var vBlock = new TextBlock
+        {
+            X = 745, Y = 245, Width = 72, Height = 326,
+            Direction = TextDirection.Vertical,
+            Text = "ありがとう", Language = "ja",
+            Translation = "Terima kasih!",
+        };
+        var page = PageWith(vBlock);
+
+        int n = TypesetService.AutoTypesetPage(page, MangaFixture.PageWidth);
+        Assert.Equal(1, n);
+        var style = Assert.IsType<TypesetStyle>(vBlock.Typeset);
+        Assert.False(style.Vertical);
+        // Pelebaran tercatat sebagai geometri tersimpan: lebar sasaran
+        // max(72, round(326 × 0,55)) = 179 → Dw = 107, dan kotak
+        // efektif (= RenderBox) selebar itu serta tetap di halaman.
+        Assert.True(style.Dw > 0,
+            $"Blok vertikal harus dilebarkan (Dw={style.Dw}).");
+        Assert.Equal(179, vBlock.Width + style.Dw);
+        var eff = TypesetService.RenderBox(vBlock, style);
+        Assert.Equal(179, eff.Width);
+        Assert.True(eff.Left >= 0 && eff.Right <= MangaFixture.PageWidth,
+            $"Kotak efektif harus di dalam halaman: {eff}");
+
+        using var basePage = BlankPage(SKColors.White);
+        using var final = TypesetService.RenderFinalBitmap(basePage, page);
+        // Semua tinta di dalam kotak yang dilebarkan (+ margin 3).
+        Assert.Equal(0, DiffOutside(final, basePage, eff, margin: 3));
+        // Lebar tinta jauh melampaui kolom asli 72 px: teks terbungkus
+        // per kata, bukan menumpuk per karakter di kolom sempit.
+        var ink = InkBounds(final, eff);
+        Assert.False(ink.IsEmpty);
+        _out.WriteLine($"kotak tinta: {ink.Width}×{ink.Height} " +
+                       $"di kotak efektif {eff.Width}×{eff.Height}");
+        Assert.True(ink.Width > vBlock.Width,
+            $"Lebar tinta {ink.Width} harus > lebar kotak asli {vBlock.Width}.");
+    }
+
+    [Fact]
+    public void AutoTypeset_HorizontalBlock_GeometryUntouched()
+    {
+        // Pembanding: blok horizontal tidak diubah geometrinya sama
+        // sekali oleh terapkan-otomatis.
+        var hBlock = Block(100, 100, 300, 150, "Halo!");
+        var page = PageWith(hBlock);
+        Assert.Equal(1, TypesetService.AutoTypesetPage(
+            page, MangaFixture.PageWidth));
+        var style = Assert.IsType<TypesetStyle>(hBlock.Typeset);
+        Assert.Equal(0, style.Dw);
+        Assert.Equal(0, style.Dx);
+    }
+
     // ─── Proyek v5 ───────────────────────────────────────────────
 
     [Fact]

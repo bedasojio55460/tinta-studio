@@ -501,7 +501,9 @@ internal static class Program
                     CancellationToken.None).GetAwaiter().GetResult();
             }
 
-            int autoApplied = TypesetService.AutoTypesetChapter(projectChapter);
+            int autoApplied = TypesetService.AutoTypesetChapter(
+                projectChapter,
+                i => i >= 0 && i < chapter.Pages.Count ? chapter.Pages[i].Width : 0);
             ProjectStore.Save(project, chapter.SourcePath);
 
             using var clean = new CleanService();

@@ -424,3 +424,52 @@
     DejaVu; di Windows: font terpasang pengguna); (3) CBR & AVIF:
     batas Tahap 1 yang sama. Berikutnya: Tahap 6 — Ekspor
     (CBZ/PDF/folder dari halaman final) + packaging akhir.
+- 2026-10-27: **v0.5.1 — perbaikan dalam-tahap Tahap 5 (temuan
+  verifikasi agen utama): kotak render blok vertikal.** Pada
+  tmp/render-demo/page-001.png versi 0.5.0, blok OCR vertikal
+  fixture (745,245; 72×326, ありがとう → "Terima kasih!") yang
+  di-typeset horizontal terbungkus per karakter ("Teri/ma/kasi/h!")
+  dan glifnya meluber keluar bubble: kotak teks OCR memang
+  sesempit kolom teks vertikalnya, dan geometri bubble tidak
+  tersimpan (pipeline deteksi membuang kelas bubble), jadi
+  perbaikan dilakukan di lapisan typeset:
+  - `AutoTypesetPage/ProjectChapter` kini menerima lebar halaman
+    (pemanggil UI memakai ComicPage.Width bab terbuka; CLI
+    --render memakai lebar halaman bab) dan untuk blok
+    `Direction == Vertical` yang gaya barunya horizontal,
+    **melebarkan kotak render simetris di sekitar pusat blok**
+    sebelum pas-otomatis: lebar sasaran = `min(lebar halaman,
+    max(lebar blok, round(tinggi blok × 0,55)))`, X efektif
+    dijepit ke dalam halaman (margin 4). Hasilnya dicatat sebagai
+    geometri tersimpan **Dw/Dx** pada Typeset blok (fixture:
+    Dw=107, Dx=−53 → kotak efektif 179×326 di x=692). Blok
+    horizontal tidak berubah; blok vertikal yang di-typeset
+    vertikal tidak diubah; blok bergaya eksplisit tidak ditimpa
+    (aturan terapkan-otomatis yang lama).
+  - **Pas-otomatis mengutamakan kata utuh**: pelebaran saja
+    belum cukup — pada kotak 179 px, pencarian biner lama tetap
+    memilih ukuran besar yang "muat" berkat penggalan
+    ("Terim/a/kasih!"). `FitLayout` kini mencari dulu ukuran
+    terbesar yang muat TANPA memecah kata (`Layout.SplitWord`
+    menandai tata letak berisi penggalan; aturan pemecah kata di
+    BuildLayout TIDAK diubah), dan hanya jatuh ke pencarian lama
+    bila tak ada ukuran yang memuat semua kata utuh (mis. satu
+    kata memang lebih lebar dari kotak). Jalur vertikal & ukuran
+    manual tidak terpengaruh.
+  - Tes: **66 total — 65 lolos, 0 gagal, 1 skip** (skip lama
+    bersyarat sandbox yang sama; 64 tes lama = 63 lolos + 1 skip,
+    TANPA regresi) + 2 baru di TypesetTests: blok vertikal 72×326
+    "Terima kasih!" → Dw tercatat > 0 dan lebar efektif tepat 179,
+    render 0 piksel di luar kotak efektif + margin 3, kotak tinta
+    **174×106** (lebar tinta 174 > 72 — terbungkus per kata);
+    pembanding horizontal: Dw/Dx tetap 0.
+    (tmp/xunit-results-v051.xml.) Bukti dibangun ulang:
+    tmp/render-demo/page-001.png kini menampilkan "Terima" /
+    "kasih!" sebagai kata utuh di dalam bubble vertikal, dan
+    screenshot UI tmp/tinta-v05-ui.png diambil ulang (footer
+    v0.5.1, kanvas menampilkan "Terima/kasih!" utuh di kotak
+    render yang dilebarkan). Build Release bersih 0/0; publish
+    win-x64 single-file ulang: **TintaStudio.exe 124.633.681
+    byte** (PE32+ GUI; jumlah byte kebetulan sama dengan v0.5.0
+    — isi terverifikasi berbeda: simbol WidenVerticalSourceBox
+    + string footer v0.5.1 ada di dalam exe, string v0.5.0 tidak).

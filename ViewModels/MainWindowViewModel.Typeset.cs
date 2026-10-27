@@ -432,7 +432,11 @@ public sealed partial class MainWindowViewModel
         var page = CurrentProjectPage();
         if (page is null)
             return;
-        int n = TypesetService.AutoTypesetPage(page);
+        int pageWidth = 0;
+        if (CurrentChapter is not null && SelectedPageIndex >= 0
+            && SelectedPageIndex < CurrentChapter.Pages.Count)
+            pageWidth = CurrentChapter.Pages[SelectedPageIndex].Width;
+        int n = TypesetService.AutoTypesetPage(page, pageWidth);
         SaveProject();
         LoadTypesetForCurrentPage();
         StatusText = n > 0
@@ -445,7 +449,11 @@ public sealed partial class MainWindowViewModel
     {
         if (_projectChapter is null)
             return;
-        int n = TypesetService.AutoTypesetChapter(_projectChapter);
+        int n = TypesetService.AutoTypesetChapter(_projectChapter,
+            i => CurrentChapter is not null && i >= 0
+                    && i < CurrentChapter.Pages.Count
+                ? CurrentChapter.Pages[i].Width
+                : 0);
         SaveProject();
         LoadTypesetForCurrentPage();
         StatusText = n > 0

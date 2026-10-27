@@ -59,7 +59,14 @@ public static class TypesetPresets
 /// SkiaSharp di atas SALINAN bitmap — bitmap dasar tidak diubah.
 ///
 /// Ukuran font otomatis (FontSize = 0): bungkus kata per baris lalu
-/// cari (biner) ukuran terbesar yang seluruh teksnya muat di kotak.
+/// cari (biner) ukuran terbesar yang seluruh teksnya muat di kotak
+/// TANPA memecah kata; bila tidak ada ukuran yang memuat semua kata
+/// utuh (mis. satu kata memang lebih lebar dari kotak), jatuh ke
+/// ukuran terbesar yang muat dengan pemecahan per karakter seperti
+/// biasa. Aturan pemecah kata itu sendiri tidak diubah — yang
+/// dipilih hanya ukuran fontnya, agar kata tidak terpenggal hanya
+/// karena ukuran yang lebih besar kebetulan masih "muat" berkat
+/// penggalan.
 /// Ukuran manual (FontSize &gt; 0): ukuran itu dipakai apa adanya;
 /// teks tetap dibungkus dan boleh meluber keluar kotak bila memang
 /// tidak muat — itu pilihan pengguna, digambar apa adanya.
@@ -127,24 +134,73 @@ public static class TypesetService
 
     /// <summary>Isi Typeset bawaan (preset Dialog) ke semua blok
     /// berterjemahan yang belum punya Typeset. Mengembalikan jumlah
-    /// blok yang diisi.</summary>
-    public static int AutoTypesetPage(ProjectPage page)
+    /// blok yang diisi. Blok yang sudah punya Typeset (eksplisit dari
+    /// pengguna) tidak ditimpa. <paramref name="pageWidth"/> = lebar
+    /// halaman asal dalam piksel (0 = tidak diketahui) — dipakai
+    /// pelebaran blok vertikal di bawah.</summary>
+    public static int AutoTypesetPage(ProjectPage page, int pageWidth = 0)
     {
         int n = 0;
         foreach (var block in page.Blocks)
         {
             if (block.Typeset is null && !string.IsNullOrWhiteSpace(block.Translation))
             {
-                block.Typeset = TypesetPresets.Create(TypesetPresets.Dialog);
+                var style = TypesetPresets.Create(TypesetPresets.Dialog);
+                WidenVerticalSourceBox(block, style, pageWidth);
+                block.Typeset = style;
                 n++;
             }
         }
         return n;
     }
 
-    /// <summary>Varian bab dari AutoTypesetPage.</summary>
-    public static int AutoTypesetChapter(ProjectChapter chapter) =>
-        chapter.Pages.Sum(AutoTypesetPage);
+    /// <summary>Varian bab dari AutoTypesetPage.
+    /// <paramref name="pageWidthFor"/> memetakan indeks halaman ke
+    /// lebar halamannya (null = lebar tidak diketahui).</summary>
+    public static int AutoTypesetChapter(
+        ProjectChapter chapter, Func<int, int>? pageWidthFor = null) =>
+        chapter.Pages.Sum(p =>
+            AutoTypesetPage(p, pageWidthFor?.Invoke(p.Index) ?? 0));
+
+    /// <summary>
+    /// Pelebaran kotak render untuk blok hasil OCR berarah VERTIKAL
+    /// yang di-typeset HORIZONTAL. Kotak OCR blok vertikal sesempit
+    /// kolom teks vertikalnya (mis. 72×326); geometri bubble-nya
+    /// sendiri tidak tersimpan (pipeline deteksi tidak menyimpan
+    /// kelas bubble), jadi teks horizontal di kotak sesempit itu
+    /// dibungkus per karakter oleh pas-otomatis dan glifnya meluber
+    /// keluar bubble. Perbaikannya: lebarkan kotak render simetris
+    /// di sekitar pusat blok sampai lebar yang masuk akal terhadap
+    /// tinggi blok (0,55 × tinggi, dibatasi lebar halaman), geser X
+    /// dijepit agar kotak efektif tidak keluar halaman (margin 4),
+    /// dan catat sebagai geometri tersimpan (Dw/Dx pada gaya yang
+    /// baru dibuat) — terlihat di panel dan bisa diubah pengguna.
+    /// Blok horizontal, blok yang memang di-typeset vertikal, dan
+    /// blok yang kotaknya sudah cukup lebar tidak diubah.
+    /// </summary>
+    private static void WidenVerticalSourceBox(
+        TextBlock block, TypesetStyle style, int pageWidth)
+    {
+        if (block.Direction != TextDirection.Vertical || style.Vertical)
+            return;
+        int target = Math.Max(block.Width,
+            (int)Math.Round(block.Height * 0.55));
+        if (pageWidth > 0)
+            target = Math.Min(pageWidth, target);
+        int dw = target - block.Width;
+        if (dw <= 0)
+            return;
+        style.Dw += dw;
+        int dx = style.Dx - dw / 2;
+        if (pageWidth > 0)
+        {
+            const int margin = 4;
+            int effX = block.X + dx;
+            int maxX = Math.Max(margin, pageWidth - margin - target);
+            dx = Math.Clamp(effX, margin, maxX) - block.X;
+        }
+        style.Dx = dx;
+    }
 
     // ─── Font ────────────────────────────────────────────────────────
 
@@ -205,6 +261,7 @@ public static class TypesetService
         public float LineAdvance;   // jarak antar baris / antar huruf vertikal
         public float GlyphHeight;   // Descent − Ascent
         public float Ascent;        // positif: jarak puncak ke baseline
+        public bool SplitWord;      // ada kata yang dipecah per karakter
 
         public float ContentWidth(bool vertical) => vertical
             ? Columns.Count * ColumnWidth
@@ -308,6 +365,7 @@ public static class TypesetService
                 if (wordWidth > boxW + 0.75f && TextWidth(word) > 0)
                 {
                     // Kata lebih lebar dari kotak: pecah per karakter.
+                    layout.SplitWord = true;
                     if (line.Count > 0)
                         FlushLine();
                     var chunk = "";
@@ -351,22 +409,50 @@ public static class TypesetService
     }
 
     /// <summary>Pilih ukuran font: manual bila FontSize &gt; 0;
-    /// selain itu ukuran terbesar yang muat (pencarian biner).</summary>
+    /// selain itu pencarian biner ukuran terbesar yang muat —
+    /// diutamakan yang tidak memecah kata (lihat ringkasan kelas);
+    /// bila tidak ada (kata tunggal memang lebih lebar dari kotak
+    /// pada semua ukuran), dipakai hasil pencarian biasa.</summary>
     private static Layout FitLayout(
         string text, TypesetStyle style, SKTypeface typeface,
         float boxW, float boxH)
     {
         if (style.FontSize > 0)
             return BuildLayout(text, style, typeface, (float)style.FontSize, boxW, boxH);
+        if (!style.Vertical)
+        {
+            var unsplit = SearchFit(text, style, typeface, boxW, boxH,
+                requireNoSplit: true);
+            if (unsplit is not null)
+                return unsplit;
+        }
+        return SearchFit(text, style, typeface, boxW, boxH,
+            requireNoSplit: false)!;
+    }
+
+    /// <summary>Pencarian biner ukuran terbesar yang tata letaknya
+    /// muat di kotak. Dengan <paramref name="requireNoSplit"/>, hanya
+    /// tata letak tanpa kata terpecah yang diterima dan null
+    /// dikembalikan bila tidak ada. Predikat "muat (dan utuh)" adalah
+    /// awalan terhadap ukuran — kata yang muat utuh pada satu ukuran
+    /// muat utuh pada semua ukuran lebih kecil, dan tinggi isi hanya
+    /// naik seiring ukuran — jadi pencarian biner sah.</summary>
+    private static Layout? SearchFit(
+        string text, TypesetStyle style, SKTypeface typeface,
+        float boxW, float boxH, bool requireNoSplit)
+    {
         float hi = Math.Clamp(Math.Max(boxW, boxH) * 1.6f, 16f, 1200f);
-        float lo = 4f, best = lo;
+        float lo = 4f;
+        Layout? best = null;
         for (int i = 0; i < 16; i++)
         {
             float mid = (lo + hi) / 2;
             var candidate = BuildLayout(text, style, typeface, mid, boxW, boxH);
-            if (candidate.Fits(style.Vertical, boxW, boxH))
+            bool ok = candidate.Fits(style.Vertical, boxW, boxH)
+                      && (!requireNoSplit || !candidate.SplitWord);
+            if (ok)
             {
-                best = mid;
+                best = candidate;
                 lo = mid;
             }
             else
@@ -374,7 +460,11 @@ public static class TypesetService
                 hi = mid;
             }
         }
-        return BuildLayout(text, style, typeface, best, boxW, boxH);
+        // Sama seperti perilaku lama: bila tidak ada yang muat sama
+        // sekali, gambar pada ukuran minimum apa adanya.
+        return best ?? (requireNoSplit
+            ? null
+            : BuildLayout(text, style, typeface, lo, boxW, boxH));
     }
 
     // ─── Gambar ──────────────────────────────────────────────────────
