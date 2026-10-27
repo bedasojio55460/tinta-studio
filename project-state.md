@@ -908,3 +908,49 @@
   screenshot UI Bersihkan tmp/tinta-v076-ui.png (bab demo
   terbuka, kontrol "Garis tepi:" tampil). Commit lokal,
   tidak di-push.
+- 2026-10-27: **v0.7.7 — Penghapus Latar: alat inpaint gaya
+  Photoshop di halaman Bersihkan (permintaan Ando: lingkaran
+  mouse menyapu huruf, dibersihkan mengikuti latar).**
+  `BrushStroke.Kind` (enum StrokeKind Paint/Erase/Inpaint,
+  JSON "kind") + `BrushStroke.LineProtect` per sapuan;
+  skema tetap v6 — berkas lama tanpa kind diturunkan dari
+  Erased (properti Kind memakai backing nullable: tak ada
+  di berkas → Erase bila erased=true, Paint bila false).
+  Sapuan inpaint masuk GAMBAR DASAR
+  (CleanService.BuildBaseBitmap: ops blok lalu sapuan
+  inpaint urut Seq gabungan; CleanStore cache + tanda
+  tangan memuat sapuan inpaint — seq/radius/pilihan
+  garis/hash titik; sapuan cat/pulihkan tetap komposit
+  ringan di atasnya). Per sapuan: crop bbox+margin dari
+  keadaan dasar saat itu, mask gabungan cakram (titik
+  dirapatkan + ruas tebal) bertepi lembut via
+  FeatherAlpha, perlindungan InkMask.LineProtection
+  dengan wilayah = kotak mask (inset 0) bila sapuan
+  LineProtect — pilihan "Garis tepi" aktif saat sapuan
+  dibuat; composite bersama InpaintBlock
+  (CompositeInpaint). UI: toggle "Penghapus Latar" di
+  bar alat manual + pratinjau cincin kursor (Ellipse di
+  ToolCanvas, diameter = BrushSize × skala, mengikuti
+  pointer untuk ketiga alat lingkaran); VM
+  AddBackgroundEraserStroke memeriksa model siap dan
+  mencatat LineProtect = pilihan aktif. Tes: **101
+  total — 100 lolos, 0 gagal, 1 skip** (XML
+  tmp/xunit-results-v077.xml; baseline v0.7.6: 96/95/0/1;
+  skip loopback yang sama). 5 tes baru di CleanTests
+  (LaMA asli): sapuan menghapus glif ≥90% + luar sapuan
+  persis asli + simpan/muat bangun ulang identik; glif
+  menyatu garis — ON: garis ≥95% + sisa glif ≥50%, OFF:
+  glif hilang ≥90% (segmen garis pendek tidak
+  diasersikan: model bisa menyambung garis lurus yang
+  terpotong pendek — temuan putaran tes pertama);
+  muat sapuan tanpa kind dari erased + round-trip jenis
+  baru; tanda tangan CleanStore hanya berubah untuk
+  sapuan inpaint. Publish win-x64 ulang: TintaStudio.exe
+  124.695.121 byte, PE32+ GUI; footer v0.7.7 + label
+  "Penghapus Latar" terverifikasi di exe. Screenshot UI
+  Bersihkan tmp/tinta-v077-ui.png: bab demo terbuka,
+  toggle "Penghapus Latar" tampil di bar alat + teks
+  bantuan baru (klik sintetis Xvfb tidak menembus toggle,
+  jadi cincin kursor tidak ikut terpotret — logika cincin
+  mengikuti pola kanvas yang ada). Commit lokal, tidak
+  di-push.

@@ -43,7 +43,7 @@
             </Grid>
         </Border>
 
-        <!-- Bar alat manual: penetes / kuas / penghapus / warna -->
+        <!-- Bar alat manual: penetes / kuas / penghapus / penghapus latar / warna -->
         <Border DockPanel.Dock="Top" Background="#101216"
                 BorderBrush="#26292F" BorderThickness="0,0,0,1" Padding="10,5">
             <Grid ColumnDefinitions="Auto,*,Auto">
@@ -54,6 +54,8 @@
                                   ToolTip.Tip="Lukis warna di atas hasil bersih" />
                     <ToggleButton x:Name="EraserToggle" Content="Penghapus"
                                   ToolTip.Tip="Kembalikan piksel asli di area sapuan" />
+                    <ToggleButton x:Name="BackgroundEraserToggle" Content="Penghapus Latar"
+                                  ToolTip.Tip="Sapukan lingkaran di atas huruf: area tersapu dibersihkan mengikuti latar (inpaint LaMA), menghormati opsi Garis tepi" />
                     <TextBlock Text="Ukuran" VerticalAlignment="Center"
                                Foreground="#8A939E" FontSize="12" Margin="6,0,0,0" />
                     <Slider Minimum="4" Maximum="120" Width="110"
@@ -94,6 +96,12 @@
                            Stretch="Uniform" />
                     <Canvas x:Name="OverlayCanvas" Background="Transparent"
                             IsHitTestVisible="False" />
+                    <Canvas x:Name="ToolCanvas" Background="Transparent"
+                            IsHitTestVisible="False">
+                        <Ellipse x:Name="BrushRing" Stroke="#2DD4BF"
+                                 StrokeThickness="1.5" Fill="#262DD4BF"
+                                 IsVisible="False" />
+                    </Canvas>
                 </Grid>
             </Border>
 
@@ -158,7 +166,7 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                        <TextBlock Text="Mode Solid memakai warna sampel otomatis dari interior bubble, atau warna manual bila 'Sampel otomatis' dimatikan. Inpaint mengisi mengikuti latar (perlu model LaMA). Opsi 'Garis tepi' berlaku untuk inpaint dan dicatat per blok: 'Jaga garis' melindungi garis tepi bubble (huruf yang menyatu dengan garis bisa tertinggal); 'Hapus tuntas' membersihkan semua tinta (garis bisa terpotong) — pilih yang terbaik per kasus."
+                        <TextBlock Text="Mode Solid memakai warna sampel otomatis dari interior bubble, atau warna manual bila 'Sampel otomatis' dimatikan. Inpaint mengisi mengikuti latar (perlu model LaMA). Opsi 'Garis tepi' berlaku untuk inpaint dan dicatat per blok: 'Jaga garis' melindungi garis tepi bubble (huruf yang menyatu dengan garis bisa tertinggal); 'Hapus tuntas' membersihkan semua tinta (garis bisa terpotong) — pilih yang terbaik per kasus. Alat 'Penghapus Latar' membersihkan area yang kamu sapu dengan lingkaran mouse mengikuti latar (inpaint, menghormati opsi Garis tepi yang aktif) — pas untuk sisa huruf di luar blok; sapuannya tercatat dan bisa diurungkan seperti sapuan lain."
                                    Foreground="#8A939E" FontSize="11" TextWrapping="Wrap" />
                     </StackPanel>
                 </StackPanel>

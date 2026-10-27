@@ -11,6 +11,51 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.7.7 — Penghapus Latar (Penghapus Inpaint Gaya Photoshop)
+
+Halaman Bersihkan punya alat manual ketiga di samping Kuas
+dan Penghapus: **Penghapus Latar**. Lingkaran kuas digerakkan
+dengan mouse di atas kanvas (pratinjau cincin mengikuti kursor,
+slider "Ukuran" yang sama), dan area huruf yang tersapu
+dibersihkan **mengikuti latar** — di-inpaint LaMA — bukan
+dicat warna dan bukan dipulihkan ke asli. Pas untuk sisa
+huruf/SFX di luar kotak blok.
+
+- **Sapuan jenis baru `BrushStroke.Kind` (enum StrokeKind:
+  Paint / Erase / Inpaint; JSON `"kind": "inpaint"`)** +
+  `BrushStroke.LineProtect` per sapuan. Skema proyek tetap
+  **v6**: berkas lama tanpa `kind` dimuat dari bidang `Erased`
+  lama (true = Erase, false = Paint) — kompatibel penuh.
+  Sapuan inpaint non-destruktif seperti sapuan lain: tercatat
+  di proyek, Urungkan membuangnya, bangun ulang deterministik.
+- **Mesin:** sapuan inpaint adalah bagian GAMBAR DASAR
+  (`CleanService.BuildBaseBitmap`: operasi blok lalu sapuan
+  inpaint, urut Seq gabungan) karena LaMA mahal — hasilnya
+  di-cache CleanStore dan tanda tangan cache memuat sapuan
+  inpaint (urutan, radius, pilihan garis, hash titik). Sapuan
+  cat/pulihkan tetap dikomposit ringan di atas gambar dasar.
+  Per sapuan: potongan kotak batas sapuan+margin di-inpaint
+  dengan mask = gabungan cakram sapuan bertepi lembut;
+  menghormati pilihan "Garis tepi" yang aktif saat sapuan
+  dibuat (mekanisme `InkMask.LineProtection` yang sama:
+  komponen tinta yang menyentuh tepi potongan atau melintasi
+  batas kotak mask dilindungi). Di luar mask piksel persis
+  asli. Render & ekspor memakai jalur CleanStore yang sama.
+- **Tes: 101 total — 100 lolos, 0 gagal, 1 skip** (baseline
+  v0.7.6: 96/95/0/1; skip = loopback sandbox yang sama).
+  5 tes baru: (a) sapuan di atas glif sintetis → tinta glif
+  hilang ≥ 90%, piksel jauh di luar sapuan persis asli,
+  simpan/muat → bangun ulang identik (hash sama, model LaMA
+  asli); (b) sapuan melintasi garis tepi dengan glif menyatu:
+  LineProtect ON → garis ≥ 95% utuh + sisa glif menyatu
+  terdeteksi; OFF → tinta glif menyatu hilang ≥ 90%
+  (perbedaan perilaku terasersi pada tinta yang menyatu —
+  segmen garis lurus pendek yang terpotong bisa disambung
+  kembali oleh model, jadi tidak diasersikan); (c) berkas
+  tanpa `kind` dimuat dari `erased` + putaran simpan/muat
+  jenis baru; (d) tanda tangan CleanStore berubah hanya
+  untuk sapuan inpaint.
+
 ## Status: v0.7.6 — Pilihan Mode Perlindungan Garis (Jaga Garis / Hapus Tuntas)
 
 Perlindungan garis v0.7.5 selalu aktif — garis tepi selamat,

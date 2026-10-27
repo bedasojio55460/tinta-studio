@@ -19,8 +19,13 @@ namespace TintaStudio.Services;
 ///   di dalam kotak blok (dilasi), hasil ditempel hanya di dalam
 ///   mask bertepi lembut — garis bubble &amp; gambar di luar mask
 ///   persis asli.
-/// Sapuan manual: kuas warna menggambar di atas hasil bersih;
-/// penghapus mengembalikan piksel ASLI di cakram sapuan.
+/// Sapuan manual (tiga jenis): kuas warna menggambar di atas hasil
+/// bersih; penghapus mengembalikan piksel ASLI di cakram sapuan;
+/// penghapus latar (v0.7.7) meng-inpaint cakram sapuan mengikuti
+/// latar — sapuan jenis ini bagian dari gambar DASAR (dihitung
+/// sesudah operasi blok, urut Seq gabungan) karena LaMA mahal,
+/// jadi ikut di-cache CleanStore; dua jenis lain tetap dikomposit
+/// ringan di atas gambar dasar.
 /// </summary>
 public sealed class CleanService : IDisposable
 {
@@ -44,15 +49,45 @@ public sealed class CleanService : IDisposable
         SKBitmap original, ProjectPage page, CancellationToken ct = default,
         IProgress<string>? progress = null)
     {
-        var result = BuildOpsBitmap(original, page, ct, progress);
+        var result = BuildBaseBitmap(original, page, ct, progress);
         ApplyStrokes(result, original, page, ct);
         return result;
     }
 
     /// <summary>
+    /// Gambar DASAR halaman: operasi per blok + sapuan penghapus
+    /// latar (inpaint), diterapkan bergantian menurut Seq gabungan
+    /// (sapuan inpaint bekerja di atas keadaan dasar saat itu, jadi
+    /// sapuan yang tumpang tindih operasi blok menghormati urutan
+    /// waktu). Sapuan cat/pulihkan TIDAK termasuk (dikomposit
+    /// terpisah oleh <see cref="ApplyStrokes"/>). Inilah gambar
+    /// yang di-cache CleanStore.
+    /// </summary>
+    public SKBitmap BuildBaseBitmap(
+        SKBitmap original, ProjectPage page, CancellationToken ct = default,
+        IProgress<string>? progress = null)
+    {
+        var result = BuildOpsBitmap(original, page, ct, progress);
+        foreach (var stroke in page.ManualStrokes
+                     .Where(s => s.Kind == StrokeKind.Inpaint)
+                     .OrderBy(s => s.Seq))
+        {
+            ct.ThrowIfCancellationRequested();
+            progress?.Report("Inpaint sapuan penghapus latar…");
+            InpaintStroke(result, stroke, ct);
+        }
+        return result;
+    }
+
+    /// <summary>Ada sapuan penghapus latar di halaman ini?</summary>
+    public static bool HasInpaintStrokes(ProjectPage page) =>
+        page.ManualStrokes.Any(s => s.Kind == StrokeKind.Inpaint);
+
+    /// <summary>
     /// Bangun gambar dari operasi per blok SAJA (tanpa sapuan
-    /// manual). Ini bagian yang mahal (inpaint), jadi hasilnya yang
-    /// di-cache CleanStore; sapuan dikomposit di atasnya.
+    /// manual apa pun). Dipakai <see cref="BuildBaseBitmap"/>,
+    /// yang hasilnya (ditambah sapuan penghapus latar) di-cache
+    /// CleanStore.
     /// </summary>
     public SKBitmap BuildOpsBitmap(
         SKBitmap original, ProjectPage page, CancellationToken ct = default,
@@ -82,7 +117,10 @@ public sealed class CleanService : IDisposable
         return result;
     }
 
-    /// <summary>Terapkan semua sapuan manual halaman, urut Seq.</summary>
+    /// <summary>Terapkan sapuan manual RINGAN halaman (cat solid +
+    /// pulihkan asli), urut Seq. Sapuan penghapus latar tidak
+    /// diterapkan di sini — ia bagian gambar dasar
+    /// (<see cref="BuildBaseBitmap"/>).</summary>
     public static void ApplyStrokes(
         SKBitmap target, SKBitmap original, ProjectPage page,
         CancellationToken ct = default)
@@ -184,8 +222,20 @@ public sealed class CleanService : IDisposable
             ? InkMask.LineProtection(crop, blockInCrop, inset: 2)
             : new bool[cropRect.Width * cropRect.Height];
         using var mask = InkMask.Build(crop, blockInCrop, dilate: 3, inset: 2, protect);
-        var alpha = InkMask.FeatherAlpha(mask, expand: 2, blur: 2, protect);
+        CompositeInpaint(target, cropRect, crop, mask, protect);
+    }
 
+    /// <summary>
+    /// Jalankan LaMA pada potongan dan tempel hasilnya ke target
+    /// hanya di dalam mask bertepi lembut (alfa dari mask): piksel
+    /// di luar mask — dan piksel garis terlindungi — persis seperti
+    /// semula di target. Dipakai inpaint blok dan sapuan penghapus
+    /// latar.
+    /// </summary>
+    private void CompositeInpaint(SKBitmap target, SKRectI cropRect,
+        SKBitmap crop, SKBitmap mask, bool[] protect)
+    {
+        var alpha = InkMask.FeatherAlpha(mask, expand: 2, blur: 2, protect);
         using var filled = _inpainter.Inpaint(crop, mask);
         for (int y = 0; y < cropRect.Height; y++)
         {
@@ -211,13 +261,97 @@ public sealed class CleanService : IDisposable
         }
     }
 
-    /// <summary>Terapkan satu sapuan manual pada hasil bersih.</summary>
+    /// <summary>
+    /// Inpaint satu sapuan penghapus latar pada bitmap target
+    /// (diubah di tempat): potong kotak batas sapuan+margin dari
+    /// KEADAAN TARGET SAAT INI, mask = gabungan cakram sapuan
+    /// (titik dirapatkan, ruas antar titik digaris tebal supaya
+    /// sapuan kontinu), jalankan LaMA, tempel balik hanya di dalam
+    /// mask bertepi lembut. Pilihan garis tepi sapuan
+    /// (BrushStroke.LineProtect) menghormati mekanisme yang sama
+    /// dengan inpaint blok: komponen tinta yang menyentuh tepi
+    /// potongan atau melintasi batas kotak mask dilindungi — garis
+    /// tepi yang tersapu tidak ikut terhapus; mode mati = tanpa
+    /// perlindungan sama sekali.
+    /// </summary>
+    public void InpaintStroke(SKBitmap target, BrushStroke stroke,
+        CancellationToken ct = default)
+    {
+        if (stroke.Points.Count == 0 || stroke.Radius <= 0)
+            return;
+        int r = stroke.Radius;
+        int left = stroke.Points.Min(p => p.X) - r;
+        int top = stroke.Points.Min(p => p.Y) - r;
+        int right = stroke.Points.Max(p => p.X) + r;
+        int bottom = stroke.Points.Max(p => p.Y) + r;
+        int span = Math.Max(right - left, bottom - top);
+        int margin = Math.Clamp(span * 2 / 5, 32, 160);
+        var cropRect = new SKRectI(
+            Math.Max(0, left - margin), Math.Max(0, top - margin),
+            Math.Min(target.Width, right + margin),
+            Math.Min(target.Height, bottom + margin));
+        if (cropRect.Width <= 0 || cropRect.Height <= 0)
+            return;
+
+        ct.ThrowIfCancellationRequested();
+        using var crop = new SKBitmap(cropRect.Width, cropRect.Height);
+        using (var canvas = new SKCanvas(crop))
+            canvas.DrawBitmap(target,
+                new SKRect(cropRect.Left, cropRect.Top, cropRect.Right, cropRect.Bottom),
+                new SKRect(0, 0, cropRect.Width, cropRect.Height));
+
+        // Mask: cakram di tiap titik rapat + ruas tebal antar titik.
+        using var mask = new SKBitmap(cropRect.Width, cropRect.Height);
+        var maskBox = SKRectI.Empty;
+        using (var canvas = new SKCanvas(mask))
+        {
+            canvas.Clear(SKColors.Black);
+            using var white = new SKPaint
+            {
+                Color = SKColors.White,
+                Style = SKPaintStyle.Fill,
+                IsAntialias = true,
+            };
+            using var line = new SKPaint
+            {
+                Color = SKColors.White,
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 2f * r,
+                StrokeCap = SKStrokeCap.Round,
+                IsAntialias = true,
+            };
+            var pts = Densify(stroke).ToList();
+            foreach (var (cx, cy) in pts)
+                canvas.DrawCircle(cx - cropRect.Left, cy - cropRect.Top, r, white);
+            for (int i = 1; i < pts.Count; i++)
+                canvas.DrawLine(
+                    pts[i - 1].X - cropRect.Left, pts[i - 1].Y - cropRect.Top,
+                    pts[i].X - cropRect.Left, pts[i].Y - cropRect.Top, line);
+            // Kotak batas mask sebenarnya (untuk uji lintas batas
+            // perlindungan garis).
+            int ml = Math.Max(0, left - cropRect.Left), mt = Math.Max(0, top - cropRect.Top);
+            int mr = Math.Min(cropRect.Width, right - cropRect.Left);
+            int mb = Math.Min(cropRect.Height, bottom - cropRect.Top);
+            maskBox = new SKRectI(ml, mt, mr, mb);
+        }
+
+        var protect = stroke.LineProtect
+            ? InkMask.LineProtection(crop, maskBox, inset: 0)
+            : new bool[cropRect.Width * cropRect.Height];
+        CompositeInpaint(target, cropRect, crop, mask, protect);
+    }
+
+    /// <summary>Terapkan satu sapuan manual ringan pada hasil
+    /// bersih. Sapuan penghapus latar diabaikan di sini (sudah
+    /// terbakar di gambar dasar).</summary>
     public static void ApplyStroke(SKBitmap target, SKBitmap original, BrushStroke stroke)
     {
         if (stroke.Points.Count == 0)
             return;
+        if (stroke.Kind == StrokeKind.Inpaint)
+            return;
         using var canvas = new SKCanvas(target);
-        if (stroke.Erased)
+        if (stroke.Kind == StrokeKind.Erase)
         {
             // Penghapus: salin kembali cakram piksel ASLI di tiap titik.
             foreach (var (cx, cy) in Densify(stroke))
@@ -345,12 +479,13 @@ public sealed class CleanService : IDisposable
 /// <summary>
 /// Cache berkas turunan gambar bersih per (bab, halaman), berdampingan
 /// dengan proyek kerja di &lt;config&gt;/cleaned/&lt;hash-bab&gt;/.
-/// Yang di-cache adalah gambar DASAR hasil operasi per blok saja
-/// (bagian mahal: inpaint) — nama berkas memuat tanda tangan operasi,
-/// jadi operasi yang berubah otomatis menidakberlakukan cache lama.
-/// Sapuan manual TIDAK ikut tanda tangan: sapuan dikomposit di atas
-/// gambar dasar saat gambar diminta, sehingga menyunting sapuan
-/// tidak pernah memicu inpaint ulang.
+/// Yang di-cache adalah gambar DASAR: operasi per blok + sapuan
+/// penghapus latar (bagian mahal: inpaint) — nama berkas memuat
+/// tanda tangan keduanya, jadi perubahan apa pun otomatis
+/// menidakberlakukan cache lama. Sapuan cat/pulihkan TIDAK ikut
+/// tanda tangan: keduanya dikomposit di atas gambar dasar saat
+/// gambar diminta, sehingga menyuntingnya tidak pernah memicu
+/// inpaint ulang.
 /// </summary>
 public static class CleanStore
 {
@@ -368,7 +503,9 @@ public static class CleanStore
         }
     }
 
-    /// <summary>Tanda tangan operasi per blok satu halaman.</summary>
+    /// <summary>Tanda tangan gambar dasar satu halaman: operasi per
+    /// blok + sapuan penghapus latar (jenis sapuan lain dikomposit
+    /// langsung dan tidak memengaruhi gambar dasar).</summary>
     public static string OpsSignature(ProjectChapter chapter, ProjectPage page, ComicPage info)
     {
         var sb = new StringBuilder();
@@ -382,6 +519,20 @@ public static class CleanStore
             if (b is not null)
                 sb.Append(':').Append(b.X).Append(',').Append(b.Y)
                   .Append(',').Append(b.Width).Append(',').Append(b.Height);
+        }
+        foreach (var s in page.ManualStrokes
+                     .Where(s => s.Kind == StrokeKind.Inpaint)
+                     .OrderBy(s => s.Seq))
+        {
+            var pts = new StringBuilder();
+            foreach (var p in s.Points)
+                pts.Append(p.X).Append(',').Append(p.Y).Append(';');
+            var ptsHash = Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(pts.ToString())))[..12]
+                .ToLowerInvariant();
+            sb.Append("|sinp:").Append(s.Seq).Append(':').Append(s.Radius)
+              .Append(':').Append(s.LineProtect ? "garis" : "tuntas")
+              .Append(':').Append(ptsHash);
         }
         return Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString())))[..16].ToLowerInvariant();
@@ -405,7 +556,7 @@ public static class CleanStore
             ?? throw new InvalidDataException($"Halaman kerja tidak terbaca: {info.SourceName}");
 
         SKBitmap baseBmp;
-        if (page.CleanOps.Count == 0)
+        if (page.CleanOps.Count == 0 && !CleanService.HasInpaintStrokes(page))
         {
             baseBmp = original.Copy();
         }
@@ -417,7 +568,7 @@ public static class CleanStore
                     ProjectStore.PathFor(chapter.SourcePath)));
             var file = Path.Combine(dir, $"p{page.Index}-{sig}.png");
             baseBmp = (File.Exists(file) ? SKBitmap.Decode(file) : null)
-                ?? clean.BuildOpsBitmap(original, page, ct, progress);
+                ?? clean.BuildBaseBitmap(original, page, ct, progress);
             if (!File.Exists(file))
             {
                 Directory.CreateDirectory(dir);

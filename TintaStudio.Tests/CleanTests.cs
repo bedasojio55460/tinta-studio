@@ -547,6 +547,273 @@ public sealed class CleanTests
         }
     }
 
+    /// <summary>
+    /// Fixture v0.7.7 untuk Penghapus Latar: halaman putih 500x700
+    /// dengan bubble bergaris tepi hitam 3 px dan satu glif lepas
+    /// 32x32 di (154,204). Wilayah ukur glif: interiornya
+    /// (160,210)-(180,230).
+    /// </summary>
+    private static SKBitmap BgEraserFixture()
+    {
+        var page = new SKBitmap(500, 700);
+        using var canvas = new SKCanvas(page);
+        canvas.Clear(SKColors.White);
+        using var black = new SKPaint
+        { Color = SKColors.Black, Style = SKPaintStyle.Fill };
+        using var white = new SKPaint
+        { Color = SKColors.White, Style = SKPaintStyle.Fill };
+        canvas.DrawRect(new SKRect(60, 60, 440, 640), black);
+        canvas.DrawRect(new SKRect(63, 63, 437, 637), white);
+        canvas.DrawRect(new SKRect(154, 204, 186, 236), black);
+        return page;
+    }
+
+    private static BrushStroke BgStroke(bool lineProtect, params (int X, int Y)[] pts) => new()
+    {
+        Kind = StrokeKind.Inpaint,
+        Erased = false,
+        LineProtect = lineProtect,
+        Radius = 26,
+        Points = pts.Select(p => new StrokePoint { X = p.X, Y = p.Y }).ToList(),
+    };
+
+    [SkippableFact]
+    public void BackgroundEraserStroke_RemovesGlyph_OutsideStrokePixelExact()
+    {
+        Skip.If(!ModelStore.InpaintReady,
+            "Model inpaint belum diunduh: inpaint-lama.onnx");
+        using var page = BgEraserFixture();
+        string hashBefore = CleanService.PngHash(page);
+        var glyphInner = new SKRectI(160, 210, 180, 230);
+        double before = InkDensity(page, glyphInner);
+        Assert.Equal(1.0, before);
+
+        var projPage = PageWith();
+        CleanService.AddStroke(projPage, BgStroke(true, (170, 220)));
+
+        using var clean = new CleanService();
+        using var cleaned = clean.BuildCleanedPage(page, projPage);
+        double after = InkDensity(cleaned, glyphInner);
+        _out.WriteLine($"penghapus latar: tinta glif {before:F3} → {after:F3}");
+        Assert.True(after <= before * 0.10,
+            $"Tinta glif di area sapuan harus hilang ≥90% (sebelum {before:F3}, sesudah {after:F3}).");
+        // Di luar jangkauan sapuan + margin tempel: piksel persis asli.
+        for (int y = 80; y < 180; y += 7)
+            for (int x = 260; x < 420; x += 7)
+                Assert.Equal(page.GetPixel(x, y), cleaned.GetPixel(x, y));
+        for (int y = 520; y < 620; y += 7)
+            for (int x = 90; x < 300; x += 7)
+                Assert.Equal(page.GetPixel(x, y), cleaned.GetPixel(x, y));
+        // Non-destruktif: bitmap masukan tidak berubah.
+        Assert.Equal(hashBefore, CleanService.PngHash(page));
+
+        // Bangun ulang dari proyek yang disimpan + dimuat: identik.
+        var dir = Path.Combine(Path.GetTempPath(),
+            "tinta-bgeraser-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var project = new TintaProject { Name = "Uji Penghapus Latar" };
+            var chapter = new ProjectChapter
+            {
+                SourcePath = "/tmp/bab.cbz", Title = "Bab",
+                Format = "ZIP (CBZ)", PageCount = 1,
+            };
+            chapter.Pages.Add(projPage);
+            project.Chapters.Add(chapter);
+            var path = Path.Combine(dir, "proyek.tinta.json");
+            project.Save(path);
+            Assert.Contains("\"kind\": \"inpaint\"", File.ReadAllText(path));
+
+            var loaded = TintaProject.Load(path);
+            var loadedPage = loaded.Chapters[0].Pages[0];
+            var stroke = Assert.Single(loadedPage.ManualStrokes);
+            Assert.Equal(StrokeKind.Inpaint, stroke.Kind);
+            Assert.True(stroke.LineProtect);
+            using var rebuilt = clean.BuildCleanedPage(page, loadedPage);
+            Assert.Equal(CleanService.PngHash(cleaned), CleanService.PngHash(rebuilt));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Fixture garis untuk Penghapus Latar: bubble fixture ditambah
+    /// glif yang MENYATU dengan garis tepi kanan (persegi tinta
+    /// x 413..437 menempel ke pita garis x 437..440, y 288..312) —
+    /// pola yang sama dengan fixture blok v0.7.6. Wilayah ukur glif
+    /// menyatu: interior (417,292)-(433,308); pita garis ukur:
+    /// (437,288)-(440,312).
+    /// </summary>
+    private static SKBitmap BgEraserFusedFixture()
+    {
+        var page = BgEraserFixture();
+        using var canvas = new SKCanvas(page);
+        using var black = new SKPaint
+        { Color = SKColors.Black, Style = SKPaintStyle.Fill };
+        canvas.DrawRect(new SKRect(413, 288, 437, 312), black);
+        canvas.Flush();
+        return page;
+    }
+
+    private static readonly SKRectI FusedStrokeArea = new(417, 292, 433, 308);
+    private static readonly SKRectI StrokeBorderBand = new(437, 288, 440, 312);
+
+    [SkippableFact]
+    public void BackgroundEraserStroke_LineProtectOn_KeepsCrossingBorder()
+    {
+        Skip.If(!ModelStore.InpaintReady,
+            "Model inpaint belum diunduh: inpaint-lama.onnx");
+        using var page = BgEraserFusedFixture();
+        double borderBefore = InkDensity(page, StrokeBorderBand);
+        double fusedBefore = InkDensity(page, FusedStrokeArea);
+        Assert.Equal(1.0, borderBefore);
+        Assert.Equal(1.0, fusedBefore);
+
+        // Sapuan melintasi glif menyatu + garis tepi di belakangnya.
+        var projPage = PageWith();
+        var stroke = BgStroke(true, (380, 300), (402, 300), (424, 300));
+        stroke.Radius = 18;
+        CleanService.AddStroke(projPage, stroke);
+
+        using var clean = new CleanService();
+        using var cleaned = clean.BuildCleanedPage(page, projPage);
+        double borderAfter = InkDensity(cleaned, StrokeBorderBand);
+        double fusedAfter = InkDensity(cleaned, FusedStrokeArea);
+        _out.WriteLine($"disapu (jaga): garis {borderBefore:F3} → {borderAfter:F3}, " +
+                       $"glif menyatu {fusedBefore:F3} → {fusedAfter:F3}");
+        Assert.True(borderAfter >= borderBefore * 0.95,
+            $"Garis yang melintasi sapuan harus utuh ≥95% saat jaga garis " +
+            $"(sebelum {borderBefore:F3}, sesudah {borderAfter:F3}).");
+        Assert.True(fusedAfter >= fusedBefore * 0.5,
+            $"Glif yang menyatu dengan garis ikut terlindungi (satu komponen) " +
+            $"dan harus masih terdeteksi (sebelum {fusedBefore:F3}, sesudah {fusedAfter:F3}).");
+    }
+
+    [SkippableFact]
+    public void BackgroundEraserStroke_LineProtectOff_ErasesCrossingBorder()
+    {
+        Skip.If(!ModelStore.InpaintReady,
+            "Model inpaint belum diunduh: inpaint-lama.onnx");
+        using var page = BgEraserFusedFixture();
+        double fusedBefore = InkDensity(page, FusedStrokeArea);
+        Assert.Equal(1.0, fusedBefore);
+
+        // Sapuan yang sama persis dengan tes jaga garis, tanpa
+        // perlindungan: glif menyatu harus hilang tuntas. (Segmen
+        // garis di belakang glif tidak diasersikan: model boleh
+        // menyambung kembali garis lurus yang terpotong pendek —
+        // perbedaan perilaku yang diasersikan adalah pada tinta
+        // yang menyatu dengan garis.)
+        var projPage = PageWith();
+        var stroke = BgStroke(false, (380, 300), (402, 300), (424, 300));
+        stroke.Radius = 18;
+        CleanService.AddStroke(projPage, stroke);
+
+        using var clean = new CleanService();
+        using var cleaned = clean.BuildCleanedPage(page, projPage);
+        double fusedAfter = InkDensity(cleaned, FusedStrokeArea);
+        _out.WriteLine($"disapu (tuntas): glif menyatu {fusedBefore:F3} → {fusedAfter:F3}");
+        Assert.True(fusedAfter <= fusedBefore * 0.10,
+            $"Tinta glif menyatu harus hilang ≥90% tanpa perlindungan " +
+            $"(sebelum {fusedBefore:F3}, sesudah {fusedAfter:F3}).");
+    }
+
+    [Fact]
+    public void Project_LoadsStrokesWithoutKind_FromErased_AndRoundTripsNewKinds()
+    {
+        var dir = Path.Combine(Path.GetTempPath(),
+            "tinta-bgeraser-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            // Berkas gaya lama: manualStrokes TANPA bidang kind.
+            var path = Path.Combine(dir, "lama.tinta.json");
+            File.WriteAllText(path, """
+                {
+                  "format": "tinta-studio-project",
+                  "version": 6,
+                  "name": "Proyek lama",
+                  "chapters": [
+                    { "sourcePath": "/tmp/bab.cbz", "title": "Bab",
+                      "format": "ZIP (CBZ)", "pageCount": 1,
+                      "pages": [
+                        { "index": 0, "blocks": [],
+                          "manualStrokes": [
+                            { "erased": true, "color": "#FFFFFF",
+                              "radius": 9, "points": [ { "x": 5, "y": 6 } ],
+                              "seq": 1 },
+                            { "erased": false, "color": "#123456",
+                              "radius": 9, "points": [ { "x": 7, "y": 8 } ],
+                              "seq": 2 }
+                          ] }
+                      ] }
+                  ]
+                }
+                """);
+            var loaded = TintaProject.Load(path);
+            var strokes = loaded.Chapters[0].Pages[0].ManualStrokes;
+            Assert.Equal(2, strokes.Count);
+            Assert.Equal(StrokeKind.Erase, strokes[0].Kind);
+            Assert.Equal(StrokeKind.Paint, strokes[1].Kind);
+
+            // Jenis baru bertahan putaran simpan/muat, termasuk
+            // pilihan garis tepi false.
+            strokes.Add(new BrushStroke
+            {
+                Kind = StrokeKind.Inpaint, Erased = false, LineProtect = false,
+                Radius = 15,
+                Points = new List<StrokePoint> { new() { X = 50, Y = 60 } },
+                Seq = 3,
+            });
+            var path2 = Path.Combine(dir, "baru.tinta.json");
+            loaded.Save(path2);
+            var json = File.ReadAllText(path2);
+            Assert.Contains("\"kind\": \"inpaint\"", json);
+            Assert.Contains("\"lineProtect\": false", json);
+            var reloaded = TintaProject.Load(path2);
+            var s3 = reloaded.Chapters[0].Pages[0].ManualStrokes[2];
+            Assert.Equal(StrokeKind.Inpaint, s3.Kind);
+            Assert.False(s3.LineProtect);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void CleanStore_Signature_ChangesOnlyForInpaintStrokes()
+    {
+        var chapter = new ProjectChapter { SourcePath = "/tmp/bab.cbz" };
+        var info = new ComicPage
+        {
+            Index = 0, SourceName = "p1.png", SourceFormat = "PNG",
+            Width = 100, Height = 100, WorkPath = "/tmp/p1.png",
+        };
+        var page = PageWith();
+        var baseline = CleanStore.OpsSignature(chapter, page, info);
+
+        // Sapuan cat TIDAK mengubah tanda tangan gambar dasar.
+        CleanService.AddStroke(page, new BrushStroke
+        {
+            Kind = StrokeKind.Paint, Erased = false, Color = "#000000", Radius = 8,
+            Points = new List<StrokePoint> { new() { X = 10, Y = 10 } },
+        });
+        Assert.Equal(baseline, CleanStore.OpsSignature(chapter, page, info));
+
+        // Sapuan penghapus latar MENGUBAH tanda tangan (dan pilihan
+        // garis tepinya ikut menentukan).
+        var bg = BgStroke(true, (50, 50));
+        CleanService.AddStroke(page, bg);
+        var withBg = CleanStore.OpsSignature(chapter, page, info);
+        Assert.NotEqual(baseline, withBg);
+        bg.LineProtect = false;
+        Assert.NotEqual(withBg, CleanStore.OpsSignature(chapter, page, info));
+    }
+
     [SkippableFact]
     public void Inpaint_ProtectsBubbleOutlineNearTextColumn()
     {

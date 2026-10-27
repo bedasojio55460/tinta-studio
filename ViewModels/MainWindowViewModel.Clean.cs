@@ -14,6 +14,10 @@ public enum CleanTool
     Eyedropper,
     Brush,
     Eraser,
+
+    /// <summary>Penghapus latar: sapuan di-inpaint mengikuti latar
+    /// (gaya Photoshop), bukan dicat / dipulihkan.</summary>
+    BackgroundEraser,
 }
 
 /// <summary>
@@ -251,11 +255,13 @@ public sealed partial class MainWindowViewModel
             if (page is null)
                 return "Belum ada bab yang dibuka.";
             int ops = page.CleanOps.Count, strokes = page.ManualStrokes.Count;
+            int bgStrokes = page.ManualStrokes.Count(s => s.Kind == StrokeKind.Inpaint);
             if (ops == 0 && strokes == 0)
                 return "Halaman ini belum dibersihkan.";
             var parts = new List<string>();
             if (ops > 0) parts.Add($"{ops} blok dibersihkan");
-            if (strokes > 0) parts.Add($"{strokes} sapuan manual");
+            if (strokes - bgStrokes > 0) parts.Add($"{strokes - bgStrokes} sapuan manual");
+            if (bgStrokes > 0) parts.Add($"{bgStrokes} sapuan penghapus latar");
             return string.Join(" • ", parts) + ".";
         }
     }
@@ -519,6 +525,7 @@ public sealed partial class MainWindowViewModel
             return;
         var stroke = new BrushStroke
         {
+            Kind = erased ? StrokeKind.Erase : StrokeKind.Paint,
             Erased = erased,
             Color = CleanFillHex,
             Radius = Math.Max(2, (int)Math.Round(BrushSize / 2)),
@@ -530,6 +537,39 @@ public sealed partial class MainWindowViewModel
         StatusText = erased
             ? "Sapuan penghapus diterapkan (piksel asli dikembalikan)."
             : "Sapuan kuas diterapkan.";
+    }
+
+    /// <summary>Catat sapuan PENGHAPUS LATAR yang baru digambar di
+    /// kanvas: jenis inpaint dengan pilihan garis tepi yang sedang
+    /// aktif. Bangun ulangnya mahal (LaMA), jadi lewat jalur cache
+    /// dasar CleanStore seperti operasi blok.</summary>
+    public void AddBackgroundEraserStroke(IReadOnlyList<(int X, int Y)> points)
+    {
+        var page = CurrentProjectPage();
+        if (page is null || points.Count == 0)
+            return;
+        if (!ModelStore.InpaintReady)
+        {
+            StatusText = "Model Inpaint LaMA belum diunduh — unduh dulu lewat " +
+                         "kartu Model di halaman ini.";
+            RefreshModelStatuses();
+            Raise(nameof(InpaintModelStatus));
+            return;
+        }
+        var stroke = new BrushStroke
+        {
+            Kind = StrokeKind.Inpaint,
+            Erased = false,
+            LineProtect = CurrentLineProtect,
+            Radius = Math.Max(2, (int)Math.Round(BrushSize / 2)),
+            Points = points.Select(p => new StrokePoint { X = p.X, Y = p.Y }).ToList(),
+        };
+        CleanService.AddStroke(page, stroke);
+        SaveProject();
+        RefreshCleanStateForCurrentPage();
+        StatusText = CurrentLineProtect
+            ? "Sapuan penghapus latar diterapkan (garis tepi dijaga)."
+            : "Sapuan penghapus latar diterapkan (hapus tuntas).";
     }
 
     private bool EnsureCleanReady()

@@ -22,6 +22,11 @@ public sealed class TintaProject
     /// v6 (v0.7.6): operasi bersih memuat pilihan perlindungan garis
     /// tepi untuk inpaint (LineProtect; berkas lama tanpa bidang ini
     /// dimuat sebagai true = perilaku v0.7.5).
+    /// Bidang sapuan tambahan (v0.7.7, tetap skema v6): sapuan manual
+    /// memuat jenisnya (Kind: cat solid / pulihkan asli / penghapus
+    /// latar inpaint) + pilihan garis tepi per sapuan inpaint;
+    /// berkas lama tanpa bidang ini dimuat sebagai sapuan
+    /// cat/pulihkan menurut Erased — kompatibel penuh.
     /// CATATAN: API key TIDAK PERNAH disimpan di berkas proyek —
     /// key hanya hidup di ~/.config/tinta-studio/keys.json (0600).</summary>
     public const int CurrentVersion = 6;
@@ -172,14 +177,52 @@ public sealed class StrokePoint
     public int Y { get; set; }
 }
 
+/// <summary>Jenis sapuan manual di halaman Bersihkan.</summary>
+public enum StrokeKind
+{
+    /// <summary>Lukis warna solid di atas hasil bersih (kuas).</summary>
+    Paint,
+
+    /// <summary>Kembalikan piksel asli di area sapuan (penghapus).</summary>
+    Erase,
+
+    /// <summary>Penghapus latar: area sapuan di-inpaint LaMA
+    /// mengikuti latar di sekitarnya (v0.7.7).</summary>
+    Inpaint,
+}
+
 /// <summary>
-/// Satu sapuan kuas/penghapus manual yang digambar pengguna di atas
-/// lapisan bersih. Erased=true berarti "kembalikan piksel asli"
-/// (penghapus), false = lukis warna solid.
+/// Satu sapuan manual yang digambar pengguna di lapisan bersih.
+/// Tiga jenis (Kind): cat solid (kuas), pulihkan asli (penghapus),
+/// dan penghapus latar (inpaint LaMA di area sapuan). Bidang
+/// Erased lama dipertahankan sebagai bayangan Kind untuk
+/// Paint/Erase (true = Erase) agar berkas lama terbaca jelas;
+/// Kind adalah sumber kebenaran — berkas v1–v6 tanpa Kind dimuat
+/// sebagai Paint/Erase menurut Erased (lihat TintaProject.Load).
+/// Sapuan inpaint selalu Erased=false.
 /// </summary>
 public sealed class BrushStroke
 {
+    private StrokeKind? _kind;
+
+    /// <summary>Jenis sapuan. Bila berkas tidak memuat bidang ini
+    /// (proyek lama), nilainya diturunkan dari Erased: true = Erase,
+    /// false = Paint — jadi pemetaan lama tetap persis.</summary>
+    public StrokeKind Kind
+    {
+        get => _kind ?? (Erased ? StrokeKind.Erase : StrokeKind.Paint);
+        set => _kind = value;
+    }
+
+    /// <summary>Bayangan lama: true bila Kind=Erase. Diabaikan
+    /// untuk Kind=Inpaint.</summary>
     public bool Erased { get; set; }
+
+    /// <summary>Pilihan perlindungan garis tepi untuk sapuan
+    /// inpaint (v0.7.7): nilai yang aktif saat sapuan dibuat —
+    /// garis yang melintasi mask sapuan dilindungi bila true.
+    /// Diabaikan jenis lain. Berkas lama tanpa bidang ini → true.</summary>
+    public bool LineProtect { get; set; } = true;
 
     /// <summary>Warna kuas "#RRGGBB" (diabaikan bila Erased).</summary>
     public string Color { get; set; } = "#FFFFFF";
