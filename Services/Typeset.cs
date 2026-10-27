@@ -124,6 +124,10 @@ public static class TypesetService
                 $"Halaman kerja tidak terbaca: {chapter.Pages[page.Index].SourceName}");
         try
         {
+            // Jalur pintar (v0.7.0): bitmap dasar sudah di tangan —
+            // blok berterjemahan yang belum di-typeset diisi gaya
+            // serapi hasil manual (kotak = interior bubble).
+            SmartAutoTypesetPage(page, baseBmp);
             return RenderFinalBitmap(baseBmp, page);
         }
         finally
@@ -165,6 +169,255 @@ public static class TypesetService
         ProjectChapter chapter, Func<int, int>? pageWidthFor = null) =>
         chapter.Pages.Sum(p =>
             AutoTypesetPage(p, pageWidthFor?.Invoke(p.Index) ?? 0));
+
+    // ─── Typeset otomatis pintar (v0.7.0) ─────────────────────────
+    //
+    // Meniru hasil typeset manual yang disetujui pengguna pada
+    // halaman manga asli: teks HORIZONTAL terpusat di dalam bubble
+    // (bukan di kotak kolom OCR), ukuran font SERAGAM sehalaman, dan
+    // font gaya komik bila tersedia. Kuncinya: kotak render = kotak
+    // interior bubble yang diukur dari bitmap dasar (halaman bersih
+    // bila ada) — DrawHorizontal memang memusatkan isi secara
+    // vertikal di kotak render, jadi kotak yang benar = teks yang
+    // duduk pas di tengah bubble.
+    //
+    // Aturan keras yang sama seperti jalur lama: hanya blok
+    // berterjemahan yang BELUM punya Typeset yang diisi; gaya
+    // eksplisit pengguna tidak pernah ditimpa. Jalur lama tanpa
+    // bitmap (AutoTypesetPage) tidak berubah sama sekali.
+
+    /// <summary>Ukuran hasil auto-fit (pencarian kata-utuh
+    /// FitLayout) sebuah teks pada kotak tertentu dengan gaya
+    /// tertentu — dipakai jalur pintar untuk menyelaraskan ukuran
+    /// font sehalaman sebelum gaya disimpan.</summary>
+    internal static float MeasureAutoFitSize(
+        string text, TypesetStyle style, float boxW, float boxH)
+    {
+        using var typeface = ResolveTypeface(style);
+        return FitLayout(text, style, typeface, boxW, boxH).Size;
+    }
+
+    /// <summary>Keluarga + keberanian font jalur pintar: "Comic
+    /// Neue" tebal bila keluarga itu terdaftar di manajer font
+    /// sistem; selain itu sans aman (keluarga kosong, tidak tebal).</summary>
+    internal static (string Family, bool Bold) SmartFontChoice()
+    {
+        bool comic = SKFontManager.Default.FontFamilies
+            .Contains("Comic Neue", StringComparer.OrdinalIgnoreCase);
+        return comic ? ("Comic Neue", true) : ("", false);
+    }
+
+    private static TypesetStyle SmartBaseStyle()
+    {
+        var (family, bold) = SmartFontChoice();
+        var style = TypesetPresets.Create(TypesetPresets.Dialog);
+        style.FontFamily = family;
+        style.Bold = bold;
+        style.Vertical = false;
+        return style;
+    }
+
+    /// <summary>Piksel "interior bubble": terang dan nyaris netral
+    /// (ambang sama seperti algoritme ukur yang terbukti pada
+    /// halaman asli — teks Jepang sudah dibersihkan dari bitmap
+    /// dasar, jadi interior terbaca polos).</summary>
+    private static bool IsBubbleInterior(SKColor px) =>
+        Math.Min(px.Red, Math.Min(px.Green, px.Blue)) > 200 &&
+        Math.Max(px.Red, Math.Max(px.Green, px.Blue)) -
+            Math.Min(px.Red, Math.Min(px.Green, px.Blue)) < 28;
+
+    /// <summary>
+    /// Ukur kotak interior bubble sebuah blok dari bitmap dasar:
+    /// dari pusat kotak OCR, pindai 4 arah (langkah 2 px) sampai
+    /// lebih dari 3 sampel berurutan bukan interior — titik interior
+    /// terakhir adalah tepi. Hasil di-inset max(6 px, ~4% dimensi)
+    /// per sisi, kecuali sisi yang menyentuh tepi halaman. Fallback:
+    /// kotak OCR apa adanya bila lebar/tinggi hasil &lt; 60% kotak
+    /// OCR (pindai gagal, mis. bubble berwarna/gelap).
+    /// Pagar pengaman: jangkauan pindai per arah dibatasi 2×
+    /// dimensi kotak OCR pada sumbu itu — bubble asli selalu
+    /// memuat teksnya tak jauh dari kotak teks (rasio hasil yang
+    /// terverifikasi ≤ ~1,65), sedangkan interior putih TANPA
+    /// batas (halaman polos putih, margin kosong) akan bocor ke
+    /// seluruh halaman dan teks mendarat jauh dari bubble-nya.
+    /// </summary>
+    internal static SKRectI EstimateBubbleBox(SKBitmap baseBmp, TextBlock block)
+    {
+        var ocr = new SKRectI(block.X, block.Y,
+            block.X + block.Width, block.Y + block.Height);
+        int w = baseBmp.Width, h = baseBmp.Height;
+        if (w <= 0 || h <= 0)
+            return ocr;
+        int cx = Math.Clamp(ocr.MidX, 0, w - 1);
+        int cy = Math.Clamp(ocr.MidY, 0, h - 1);
+
+        int Scan(int dx, int dy)
+        {
+            int limit = (dx != 0 ? ocr.Width : ocr.Height) * 2;
+            int x = cx, y = cy, last = dx != 0 ? cx : cy, bad = 0, dist = 0;
+            while (x >= 0 && x < w && y >= 0 && y < h && dist <= limit)
+            {
+                if (IsBubbleInterior(baseBmp.GetPixel(x, y)))
+                {
+                    last = dx != 0 ? x : y;
+                    bad = 0;
+                }
+                else if (++bad > 3)
+                    break;
+                x += dx * 2;
+                y += dy * 2;
+                dist += 2;
+            }
+            return last;
+        }
+
+        int left = Scan(-1, 0), right = Scan(1, 0);
+        int top = Scan(0, -1), bottom = Scan(0, 1);
+        int insetX = Math.Max(6, (right - left + 1) * 4 / 100);
+        int insetY = Math.Max(6, (bottom - top + 1) * 4 / 100);
+        if (left > 0) left += insetX;
+        if (right < w - 1) right -= insetX;
+        if (top > 0) top += insetY;
+        if (bottom < h - 1) bottom -= insetY;
+        var box = new SKRectI(left, top, right + 1, bottom + 1);
+        if (box.Width < ocr.Width * 0.6 || box.Height < ocr.Height * 0.6
+            || box.Width < 8 || box.Height < 8)
+            return ocr;
+        return box;
+    }
+
+    /// <summary>
+    /// Partisi kotak-kotak bubble hasil ukur: blok yang kotak
+    /// ukurnya beririsan &gt; 35% dari luas kotak yang lebih kecil
+    /// dianggap berbagi SATU bubble. Grup digabung (union) lalu
+    /// diiris pada titik tengah antar pusat blok yang berurutan di
+    /// sepanjang sumbu dengan sebaran pusat terbesar, sehingga tiap
+    /// anggota menerima potongan union yang tidak tumpang tindih.
+    /// Blok tunggal memakai kotak ukurnya sendiri.
+    /// </summary>
+    internal static Dictionary<TextBlock, SKRectI> PartitionBubbleBoxes(
+        IReadOnlyList<TextBlock> blocks,
+        IReadOnlyDictionary<TextBlock, SKRectI> measured)
+    {
+        var result = new Dictionary<TextBlock, SKRectI>();
+        var assigned = new HashSet<TextBlock>();
+        foreach (var seed in blocks)
+        {
+            if (assigned.Contains(seed))
+                continue;
+            // Grup = komponen terhubung lewat irisan > 35%.
+            var group = new List<TextBlock> { seed };
+            assigned.Add(seed);
+            for (int i = 0; i < group.Count; i++)
+            {
+                foreach (var other in blocks)
+                {
+                    if (assigned.Contains(other))
+                        continue;
+                    var a = measured[group[i]];
+                    var b = measured[other];
+                    var inter = SKRectI.Intersect(a, b);
+                    int smaller = Math.Min(a.Width * a.Height, b.Width * b.Height);
+                    if (!inter.IsEmpty && smaller > 0 &&
+                        (double)inter.Width * inter.Height > 0.35 * smaller)
+                    {
+                        group.Add(other);
+                        assigned.Add(other);
+                    }
+                }
+            }
+            if (group.Count == 1)
+            {
+                result[seed] = measured[seed];
+                continue;
+            }
+            var union = measured[group[0]];
+            foreach (var m in group.Skip(1))
+                union = SKRectI.Union(union, measured[m]);
+            double Spread(bool xAxis) =>
+                group.Max(b => xAxis ? (double)CenterOf(b).X : CenterOf(b).Y)
+              - group.Min(b => xAxis ? (double)CenterOf(b).X : CenterOf(b).Y);
+            bool vertical = Spread(false) >= Spread(true);
+            var ordered = group.OrderBy(b =>
+                vertical ? (double)CenterOf(b).Y : CenterOf(b).X).ToList();
+            int start = vertical ? union.Top : union.Left;
+            for (int i = 0; i < ordered.Count; i++)
+            {
+                int end;
+                if (i == ordered.Count - 1)
+                    end = vertical ? union.Bottom : union.Right;
+                else
+                {
+                    var c1 = CenterOf(ordered[i]);
+                    var c2 = CenterOf(ordered[i + 1]);
+                    end = (int)Math.Round(
+                        ((vertical ? c1.Y : c1.X) + (vertical ? c2.Y : c2.X)) / 2.0);
+                }
+                result[ordered[i]] = vertical
+                    ? new SKRectI(union.Left, start, union.Right, end)
+                    : new SKRectI(start, union.Top, end, union.Bottom);
+                start = end;
+            }
+        }
+        return result;
+
+        static (float X, float Y) CenterOf(TextBlock b) =>
+            (b.X + b.Width / 2f, b.Y + b.Height / 2f);
+    }
+
+    /// <summary>
+    /// Isi gaya typeset pintar ke blok berterjemahan yang belum
+    /// punya Typeset, diukur dari bitmap dasar halaman. Mengembalikan
+    /// jumlah blok yang diisi. Lihat catatan bagian di atas untuk
+    /// aturan lengkapnya.
+    /// </summary>
+    public static int SmartAutoTypesetPage(ProjectPage page, SKBitmap baseBmp)
+    {
+        var targets = page.Blocks
+            .Where(b => b.Typeset is null
+                        && !string.IsNullOrWhiteSpace(b.Translation))
+            .ToList();
+        if (targets.Count == 0)
+            return 0;
+
+        var measured = targets.ToDictionary(
+            b => b, b => EstimateBubbleBox(baseBmp, b));
+        var boxes = PartitionBubbleBoxes(targets, measured);
+        var probe = SmartBaseStyle();
+
+        var fits = targets.ToDictionary(b => b, b =>
+            MeasureAutoFitSize(b.Translation!, probe,
+                boxes[b].Width, boxes[b].Height));
+        var sorted = fits.Values.OrderBy(v => v).ToList();
+        double target = sorted[Math.Min(sorted.Count - 1,
+            (int)Math.Ceiling(sorted.Count * 0.75) - 1)];
+        target = Math.Clamp(target, 20, 28);
+
+        foreach (var b in targets)
+        {
+            var box = boxes[b];
+            var style = SmartBaseStyle();
+            style.FontSize = Math.Round(
+                Math.Max(14, Math.Min(target, fits[b])), 1);
+            style.Dx = box.Left - b.X;
+            style.Dy = box.Top - b.Y;
+            style.Dw = box.Width - b.Width;
+            style.Dh = box.Height - b.Height;
+            b.Typeset = style;
+        }
+        return targets.Count;
+    }
+
+    /// <summary>Varian bab dari SmartAutoTypesetPage:
+    /// <paramref name="baseBitmapFor"/> memetakan indeks halaman ke
+    /// bitmap dasarnya (null = lewati halaman itu).</summary>
+    public static int SmartAutoTypesetChapter(
+        ProjectChapter chapter, Func<int, SKBitmap?> baseBitmapFor) =>
+        chapter.Pages.Sum(p =>
+        {
+            using var bmp = baseBitmapFor(p.Index);
+            return bmp is null ? 0 : SmartAutoTypesetPage(p, bmp);
+        });
 
     // ─── Font ────────────────────────────────────────────────────────
 

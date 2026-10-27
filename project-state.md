@@ -642,3 +642,67 @@
   - Tes: **74 total — 73 lolos, 0 gagal, 1 skip** (skip lama;
     tmp/xunit-results-v061.xml). Publish ulang: exe
     **124.674.641 byte** PE32+ GUI, footer v0.6.1.
+- 2026-10-27: **v0.7.0 — Typeset Otomatis Pintar** (permintaan
+  Ando: hasil otomatis harus serapi typeset manual halaman asli
+  yang disetujuinya — teks terpusat di bubble, ukuran seragam,
+  font gaya komik).
+  - **Mesin** (`Services/Typeset.cs`): `SmartAutoTypesetPage` +
+    varian bab. Hanya blok berterjemahan yang belum bergaya.
+    (1) `EstimateBubbleBox`: pindai interior (min>200, rentang
+    <28) dari pusat kotak OCR ke 4 arah, langkah 2 px, berhenti
+    sesudah >3 sampel non-interior; inset max(6, 4%) kecuali
+    sisi tepi halaman; fallback kotak OCR bila hasil <60%
+    kotak OCR. Pagar jangkauan 2x dimensi OCR per arah (temuan
+    tes: halaman putih polos membuat pindai bocor selebar
+    halaman; rasio hasil terverifikasi di halaman asli <=1,65
+    jadi pagar tidak memotong bubble asli).
+    (2) `PartitionBubbleBoxes`: irisan >35% luas kotak lebih
+    kecil = satu bubble; grup di-union lalu diiris di titik
+    tengah antar pusat berurutan sepanjang sumbu sebaran
+    terbesar. (3) Ukuran seragam: auto-fit per blok di kotak
+    baru (`MeasureAutoFitSize`, logika FitLayout lama), target
+    halaman = persentil-75 dijepit [20,28], final =
+    min(target, fit) min 14, disimpan eksplisit.
+    (4) Font: "Comic Neue" + Bold bila keluarga itu ada di
+    SKFontManager, selain itu sans aman; semua horizontal,
+    preset Dialog, rata tengah.
+  - **PERUBAHAN ARAH**: terapkan-otomatis jalur pintar TIDAK
+    lagi mengikuti arah vertikal sumber (v0.5.2) — mengikuti
+    hasil manual yang disetujui Ando (semua horizontal di
+    tengah bubble). Centang Vertikal manual tetap ada. Jalur
+    lama `AutoTypesetPage` tanpa bitmap dipertahankan persis.
+  - **Pengait**: `BuildFinalPageBitmap` menjalankan jalur
+    pintar (bitmap dasar di tangan) -> `--render` dan ekspor
+    otomatis ikut; pra-isi lama di Program.RunRender dan
+    ExportService dicabut (RunRender menghitung blok terisi
+    dari selisih gaya + menyimpan proyek sesudah loop).
+    Tombol UI Terapkan Otomatis Halaman/Bab memakai bitmap
+    dasar pola render (CleanStore -> halaman kerja) lewat
+    `SmartAutoTypesetChapter`, status menyebut "pintar".
+  - Tes: **83 total — 82 lolos, 0 gagal, 1 skip** (skip lama
+    loopback TranslateTests yang sama; baseline v0.6.1: 74).
+    9 tes baru di SmartTypesetTests (estimator elips, fallback
+    gelap, pagar halaman putih, partisi dua blok satu bubble,
+    ukuran seragam, pilihan font, tinta di dalam kotak, gaya
+    eksplisit tak ditimpa, MeasureAutoFitSize). Satu tes lama
+    diubah dengan alasan tercatat di tempatnya:
+    ExportTests ambang densitas 0,02 -> 0,01 (ukuran seragam
+    <=28 px memang menggambar "Halo!" lebih kecil daripada
+    auto-fit lama). Tes jalur lama (vertikal dsb.) TIDAK
+    berubah — semua lolos apa adanya.
+  - Publish win-x64 single-file: **124.678.737 byte** PE32+
+    GUI; string footer "v0.7.0 — Typeset Otomatis" (UTF-16)
+    ada di dalam exe, simbol SmartAutoTypesetPage ada.
+    Screenshot UI: tmp/tinta-v07-ui.png (footer v0.7.0,
+    halaman Typesetting, bab demo terbuka).
+  - Batas jujur: (1) estimator mengasumsikan interior bubble
+    terang-netral sesudah dibersihkan — bubble berwarna/gelap/
+    screentone jatuh ke fallback kotak OCR (perilaku lama);
+    (2) halaman yang marginnya putih luas ditahan pagar 2x —
+    bubble yang jauh lebih besar dari kotak teksnya (>2x per
+    arah dari pusat) terpotong pada pagar; (3) "Comic Neue"
+    hanya dipakai bila font itu terpasang di mesin pengguna
+    (di Windows: pasang font bebas OFL itu sendiri; aplikasi
+    tidak membundel font); (4) kualitas di halaman asli
+    berwarna diverifikasi agen utama lewat jalur yang sama
+    pada demo manualnya — uji .exe tetap menunggu PC Ando.

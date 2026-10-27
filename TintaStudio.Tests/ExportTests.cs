@@ -293,7 +293,12 @@ public sealed class ExportTests
                 block.X + block.Width, block.Y + block.Height);
             double inside = InkDensity(final, box);
             _out.WriteLine($"densitas tinta typeset di halaman ekspor: {inside:F3}");
-            Assert.True(inside > 0.02,
+            // Ambang 0,01 (bukan 0,02 seperti masa auto-fit lama):
+            // jalur pintar v0.7.0 memakai ukuran SERAGAM sehalaman
+            // (dijepit ≤ 28 px), jadi "Halo!" tunggal memang
+            // tergambar lebih kecil daripada auto-fit lama yang
+            // membesarkannya mengisi kotak.
+            Assert.True(inside > 0.01,
                 $"Teks typeset harus tergambar di hasil ekspor (densitas {inside:F3}).");
         }
         finally

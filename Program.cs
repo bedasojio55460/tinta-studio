@@ -518,10 +518,10 @@ internal static class Program
                     CancellationToken.None).GetAwaiter().GetResult();
             }
 
-            int autoApplied = TypesetService.AutoTypesetChapter(
-                projectChapter,
-                i => i >= 0 && i < chapter.Pages.Count ? chapter.Pages[i].Width : 0);
-            ProjectStore.Save(project, chapter.SourcePath);
+            // Typeset otomatis pintar berjalan di dalam
+            // BuildFinalPageBitmap per halaman (bitmap dasar ada
+            // di sana); hitung blok yang terisi gaya olehnya.
+            int autoApplied = 0;
 
             using var clean = new CleanService();
             Directory.CreateDirectory(outDir);
@@ -529,11 +529,14 @@ internal static class Program
             for (int i = 0; i < chapter.Pages.Count; i++)
             {
                 var page = projectChapter.PageAt(i);
+                int styledBefore = page.Blocks.Count(b => b.Typeset is not null);
                 int drawn = page.Blocks.Count(
                     b => !string.IsNullOrWhiteSpace(b.Translation));
                 string outFile = Path.Combine(outDir, $"page-{i + 1:D3}.png");
                 using var final = TypesetService.BuildFinalPageBitmap(
                     chapter, projectChapter, page, clean, CancellationToken.None);
+                autoApplied += page.Blocks.Count(b => b.Typeset is not null)
+                               - styledBefore;
                 using (var img = SkiaSharp.SKImage.FromBitmap(final))
                 using (var data = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100))
                 using (var fs = File.Create(outFile))
@@ -543,6 +546,7 @@ internal static class Program
                     $"Halaman {i + 1}: {drawn} blok digambar " +
                     $"({page.CleanOps.Count} operasi bersih) → {outFile}");
             }
+            ProjectStore.Save(project, chapter.SourcePath);
             Console.WriteLine(
                 $"Render selesai: {chapter.Title} — {totalTypeset} blok " +
                 $"tergambar, {autoApplied} blok baru di-typeset otomatis, " +

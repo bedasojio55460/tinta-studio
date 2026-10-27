@@ -427,38 +427,54 @@ public sealed partial class MainWindowViewModel
         StatusText = $"Preset \"{presetName}\" diterapkan ke blok #{item.Number}.";
     }
 
-    /// <summary>Terapkan typeset otomatis ke halaman aktif.</summary>
+    /// <summary>Bitmap dasar halaman untuk jalur pintar: halaman
+    /// bersih dari CleanStore bila ada pekerjaan bersih, selain itu
+    /// bitmap halaman kerja (pola yang sama seperti render).
+    /// Pemanggil memiliki bitmap hasil.</summary>
+    private SKBitmap? BaseBitmapForPage(int index)
+    {
+        var chapter = CurrentChapter;
+        var projectChapter = _projectChapter;
+        if (chapter is null || projectChapter is null
+            || index < 0 || index >= chapter.Pages.Count)
+            return null;
+        var page = projectChapter.PageAt(index);
+        return CleanStore.GetCleanedPageBitmap(CleanSvc, chapter, projectChapter, page)
+               ?? SKBitmap.Decode(chapter.Pages[index].WorkPath);
+    }
+
+    /// <summary>Terapkan typeset otomatis ke halaman aktif
+    /// (jalur pintar v0.7.0: diukur dari bitmap dasar halaman).</summary>
     public void ApplyAutoTypesetCurrentPage()
     {
         var page = CurrentProjectPage();
         if (page is null)
             return;
-        int pageWidth = 0;
-        if (CurrentChapter is not null && SelectedPageIndex >= 0
-            && SelectedPageIndex < CurrentChapter.Pages.Count)
-            pageWidth = CurrentChapter.Pages[SelectedPageIndex].Width;
-        int n = TypesetService.AutoTypesetPage(page, pageWidth);
+        using var baseBmp = BaseBitmapForPage(page.Index);
+        int n = baseBmp is not null
+            ? TypesetService.SmartAutoTypesetPage(page, baseBmp)
+            : TypesetService.AutoTypesetPage(page);
         SaveProject();
         LoadTypesetForCurrentPage();
+        _ = RefreshTypesetBitmapsAsync();
         StatusText = n > 0
-            ? $"Typeset otomatis: {n} blok halaman ini diisi gaya bawaan."
+            ? $"Typeset otomatis pintar: {n} blok halaman ini diisi (tengah bubble, ukuran seragam)."
             : "Semua blok berterjemahan halaman ini sudah di-typeset.";
     }
 
-    /// <summary>Terapkan typeset otomatis ke seluruh bab.</summary>
+    /// <summary>Terapkan typeset otomatis ke seluruh bab
+    /// (jalur pintar v0.7.0 per halaman).</summary>
     public void ApplyAutoTypesetChapter()
     {
         if (_projectChapter is null)
             return;
-        int n = TypesetService.AutoTypesetChapter(_projectChapter,
-            i => CurrentChapter is not null && i >= 0
-                    && i < CurrentChapter.Pages.Count
-                ? CurrentChapter.Pages[i].Width
-                : 0);
+        int n = TypesetService.SmartAutoTypesetChapter(
+            _projectChapter, BaseBitmapForPage);
         SaveProject();
         LoadTypesetForCurrentPage();
+        _ = RefreshTypesetBitmapsAsync();
         StatusText = n > 0
-            ? $"Typeset otomatis satu bab: {n} blok diisi gaya bawaan."
+            ? $"Typeset otomatis pintar satu bab: {n} blok diisi (tengah bubble, ukuran seragam)."
             : "Semua blok berterjemahan di bab ini sudah di-typeset.";
     }
 

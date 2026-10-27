@@ -11,6 +11,36 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.7.0 — Typeset Otomatis Pintar
+
+- **"Terapkan Otomatis" kini serapi typeset manual** (permintaan
+  Ando sesudah melihat hasil manual halaman manga asli). Pada
+  jalur yang punya bitmap dasar — render `--render`, ekspor,
+  dan tombol Terapkan Otomatis Halaman/Bab di UI — gaya diisi
+  oleh **jalur pintar** (`SmartAutoTypesetPage`):
+  - **Kotak render = interior bubble**, diukur dari halaman
+    bersih (pindai interior terang-netral dari pusat kotak OCR
+    ke 4 arah) — teks duduk terpusat di bubble, bukan lagi di
+    kotak kolom teks OCR. Dua blok dalam satu bubble dideteksi
+    (irisan kotak ukur > 35%) dan bubble-nya dipartisi di titik
+    tengah antar pusat blok. Pindai dibatasi 2× dimensi kotak
+    OCR per arah agar interior putih tanpa batas (halaman
+    polos) tidak bocor; pindai gagal → kotak OCR apa adanya.
+  - **Ukuran font seragam sehalaman**: target = persentil-75
+    ukuran auto-fit semua blok, dijepit 20–28 px; tiap blok
+    memakai min(target, fit-nya), minimum 14 px, dan disimpan
+    sebagai ukuran eksplisit.
+  - **Semua blok horizontal** (termasuk blok OCR vertikal) dan
+    **font gaya komik**: keluarga "Comic Neue" + tebal bila
+    font itu terpasang di sistem; selain itu sans aman biasa.
+    PERUBAHAN ARAH dari v0.5.2: terapkan-otomatis tidak lagi
+    mengikuti arah vertikal sumber — arah vertikal tetap bisa
+    dipilih manual per blok (centang Vertikal di panel
+    properti Typesetting).
+  - Aturan lama utuh: blok bergaya eksplisit tidak ditimpa,
+    hanya blok berterjemahan yang di-typeset, dan jalur lama
+    tanpa bitmap tidak berubah.
+
 ## Status: v0.6.1 — Tahap 6 (Ekspor + Packaging) — RENCANA 6 TAHAP TUNTAS
 
 - **v0.6.1 — uji berkas ASLI dari internet + peredam duplikat.**

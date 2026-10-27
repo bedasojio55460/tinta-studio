@@ -41,9 +41,10 @@ public sealed record ExportResult(
 /// FINAL — gambar bersih Tahap 3 + typeset Tahap 5, dibangun lewat
 /// jalur yang SAMA dengan CLI <c>--render</c>
 /// (<see cref="TypesetService.BuildFinalPageBitmap"/>), bukan jalur
-/// render terpisah. Typeset bawaan diterapkan dulu ke blok
-/// berterjemahan yang belum di-typeset (sama seperti --render);
-/// pemanggil menyimpan proyek sesudahnya bila ingin mempertahankannya.
+/// render terpisah. Typeset otomatis pintar (v0.7.0) diterapkan di
+/// dalam BuildFinalPageBitmap ke blok berterjemahan yang belum
+/// di-typeset (sama seperti --render); pemanggil menyimpan proyek
+/// sesudahnya bila ingin mempertahankannya.
 ///
 /// Bentuk keluaran:
 /// - CBZ: ZIP berisi page-001, page-002, … + ComicInfo.xml bab
@@ -68,9 +69,6 @@ public static class ExportService
             throw new InvalidOperationException(
                 "Bab ini tidak punya halaman untuk diekspor.");
         int quality = Math.Clamp(options.Quality, 1, 100);
-
-        TypesetService.AutoTypesetChapter(projectChapter,
-            i => i >= 0 && i < chapter.Pages.Count ? chapter.Pages[i].Width : 0);
 
         using var clean = new CleanService();
         var files = new List<string>();
