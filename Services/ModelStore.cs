@@ -73,6 +73,16 @@ public static class ModelStore
                     "https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages/chinese/dict.txt",
                     "d1979e9f794c464c0d2e0b70a7fe14dd978e9dc644c0e71f14158cdf8342af1b", 74012),
             }),
+        new("rec-en", "OCR Inggris", "PP-OCRv5 mobile recognition + kamus",
+            new[]
+            {
+                new ModelFile("rec-en.onnx",
+                    "https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages/english/rec.onnx",
+                    "4e16deb22c4da6468bdca539b2cd3c8687825538b67109177c47d359ab994cd7", 7830888),
+                new ModelFile("rec-en.dict.txt",
+                    "https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages/english/dict.txt",
+                    "e025a66d31f327ba0c232e03f407ae8d105e1e709e7ccb3f408aa778c24e70d6", 1416),
+            }),
         new(ClsId, "Klasifikasi arah garis", "PP-LCNet 0°/180° (opsional)",
             new[]
             {

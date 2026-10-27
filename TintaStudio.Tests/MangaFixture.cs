@@ -25,6 +25,8 @@ public static class MangaFixture
     public static readonly SKRectI BubbleCh = new(80, 960, 520, 1160);
     /// <summary>Bubble dua baris: 「こんにちは」 + 「せかい」.</summary>
     public static readonly SKRectI BubbleTwoLines = new(120, 300, 640, 560);
+    /// <summary>Bubble E: Inggris horizontal "Hello world".</summary>
+    public static readonly SKRectI BubbleEn = new(80, 560, 560, 760);
 
     public static SKTypeface TypefaceFor(string lang)
     {
@@ -32,6 +34,7 @@ public static class MangaFixture
         {
             "ko" => new[] { "Noto Sans CJK KR", "Noto Sans KR", "Noto Sans CJK" },
             "ch" => new[] { "Noto Sans CJK SC", "Noto Sans SC", "Noto Sans CJK" },
+            "en" => new[] { "Noto Sans", "Liberation Sans", "DejaVu Sans" },
             _ => new[] { "Noto Sans CJK JP", "Noto Sans JP", "Noto Sans CJK" },
         };
         foreach (var fam in families)
@@ -40,16 +43,17 @@ public static class MangaFixture
             if (tf is not null)
                 return tf;
         }
-        // Cadangan: unduh Noto Sans dari Google Fonts (aset fixture).
+        // Cadangan: unduh font dari Google Fonts (aset fixture).
         var dir = Path.Combine(Path.GetTempPath(), "tinta-test-fonts");
         Directory.CreateDirectory(dir);
-        var file = Path.Combine(dir, $"noto-{lang}.otf");
+        var file = Path.Combine(dir, lang == "en" ? "roboto-en.ttf" : $"noto-{lang}.otf");
         if (!File.Exists(file))
         {
             var url = lang switch
             {
                 "ko" => "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/Korean/NotoSansCJKkr-Regular.otf",
                 "ch" => "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf",
+                "en" => "https://github.com/google/fonts/raw/main/apache/roboto/Roboto-Regular.ttf",
                 _ => "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/Japanese/NotoSansCJKjp-Regular.otf",
             };
             using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(3) };
@@ -150,6 +154,17 @@ public static class MangaFixture
         using var canvas = new SKCanvas(bmp);
         DrawBubble(canvas, BubbleCh);
         DrawCenteredText(canvas, "谢谢你", "ch", BubbleCh, 72);
+        canvas.Flush();
+        return bmp;
+    }
+
+    /// <summary>Halaman Inggris satu bubble: teks Latin horizontal.</summary>
+    public static SKBitmap EnglishPage()
+    {
+        var bmp = NewPage();
+        using var canvas = new SKCanvas(bmp);
+        DrawBubble(canvas, BubbleEn);
+        DrawCenteredText(canvas, "Hello world", "en", BubbleEn, 58);
         canvas.Flush();
         return bmp;
     }

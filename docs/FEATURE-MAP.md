@@ -9,7 +9,7 @@ Semua padanan di bawah ditulis ulang dari nol dengan komponen publik.
 | Buka folder gambar, PDF, CBZ, CBR, ZIP, RAR | Impor otomatis: deteksi format dari magic bytes (anti salah label), urutan halaman natural, saring sampah arsip, ratakan folder bersarang, baca ComicInfo.xml | SharpCompress + System.IO.Compression, PDFtoImage/PDFium, SkiaSharp, LibTiff | 1 |
 | Simpan proyek .chi (lapisan & teks bisa disunting) | Proyek `.tinta.json` milik sendiri (bab, halaman, blok teks, typeset) | System.Text.Json | 1 |
 | Penampil/penyunting halaman di kanvas | Penampil halaman + daftar miniatur; editor kanvas penuh di halaman Typesetting (Tahap 5) | Avalonia + SkiaSharp | 1, 5 |
-| Deteksi teks JP/CN/KR + bubble | Deteksi blok teks & bubble → daftar blok per halaman | Model ONNX publik (deteksi teks komik, PaddleOCR / manga-ocr) via Microsoft.ML.OnnxRuntime | 2 |
+| Deteksi teks JP/CN/KR/EN + bubble | Deteksi blok teks & bubble → daftar blok per halaman | Model ONNX publik (deteksi teks komik, PaddleOCR / manga-ocr) via Microsoft.ML.OnnxRuntime | 2 |
 | Bersihkan bubble: blok solid + inpaint | Blok warna solid (eyedropper) + inpaint LaMA + kuas manual | LaMA ONNX (OnnxRuntime) + SkiaSharp | 3 |
 | Terjemahan BYOK: Gemini, GPT-4o, OpenRouter | BYOK Gemini → Groq → OpenRouter (key pengguna; pola Gema) | API publik penyedia | 4 |
 | Terjemahan lokal Ollama / LM Studio (offline) | Backend lokal Ollama / LM Studio | API lokal pengguna | 4 |

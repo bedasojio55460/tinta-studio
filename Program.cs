@@ -25,7 +25,7 @@ internal static class Program
             Environment.ExitCode = RunInfo(args[1]);
             return;
         }
-        // Mode CLI: --ocr <berkas/folder komik> [--lang ja|ko|ch] —
+        // Mode CLI: --ocr <berkas/folder komik> [--lang ja|ko|ch|en] —
         // deteksi + OCR semua halaman, hasil disimpan ke proyek bab.
         if (args.Length >= 2 && args[0] == "--ocr")
         {
@@ -33,7 +33,7 @@ internal static class Program
             return;
         }
         // Mode CLI: --clean <berkas/folder komik> [--mode solid|inpaint]
-        // [--line-protect on|off] [--out <folder>] [--lang ja|ko|ch]
+        // [--line-protect on|off] [--out <folder>] [--lang ja|ko|ch|en]
         // — bersihkan bubble semua
         // halaman (deteksi dulu bila proyek belum punya blok), tulis
         // gambar bersih ke folder keluar; operasi tersimpan di proyek.
@@ -83,8 +83,8 @@ internal static class Program
             Console.WriteLine("Pemakaian:");
             Console.WriteLine("  TintaStudio                              buka antarmuka grafis");
             Console.WriteLine("  TintaStudio --info <path>                tampilkan info bab komik (format, halaman)");
-            Console.WriteLine("  TintaStudio --ocr <path> [--lang ja|ko|ch]  deteksi + OCR, simpan ke proyek");
-            Console.WriteLine("  TintaStudio --clean <path> [--mode solid|inpaint] [--line-protect on|off] [--out <folder>] [--lang ja|ko|ch]");
+            Console.WriteLine("  TintaStudio --ocr <path> [--lang ja|ko|ch|en]  deteksi + OCR, simpan ke proyek");
+            Console.WriteLine("  TintaStudio --clean <path> [--mode solid|inpaint] [--line-protect on|off] [--out <folder>] [--lang ja|ko|ch|en]");
             Console.WriteLine("                                           bersihkan bubble, tulis gambar bersih");
             Console.WriteLine("                                           (line-protect: on = jaga garis tepi (bawaan), off = hapus tuntas)");
             Console.WriteLine("  TintaStudio --translate <path> [--provider gemini|groq|openrouter|ollama|lmstudio] [--target id|en]");

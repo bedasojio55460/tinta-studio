@@ -98,6 +98,40 @@ public sealed class DetectOcrTests
     }
 
     [SkippableFact]
+    public void Pipeline_EnglishPage_ReadsLatin()
+    {
+        RequireModels(OcrLanguage.English);
+        using var page = MangaFixture.EnglishPage();
+        using var pipeline = new DetectOcrPipeline();
+        var blocks = pipeline.AnalyzePage(page, OcrLanguage.English);
+        foreach (var b in blocks)
+            _out.WriteLine($"[{b.X},{b.Y}] {b.Direction} ocr={b.Confidence:F2} \"{b.Text}\"");
+        var block = BlockNear(blocks, MangaFixture.BubbleEn);
+        Assert.NotNull(block);
+        Assert.Equal(TextDirection.Horizontal, block!.Direction);
+        var sim = MangaFixture.Similarity(block.Text, "Hello world");
+        _out.WriteLine($"EN: \"{block.Text}\" kemiripan={sim:F2}");
+        Assert.True(sim >= 0.7,
+            $"OCR Inggris \"{block.Text}\" terlalu jauh dari \"Hello world\" ({sim:F2}).");
+    }
+
+    [Fact]
+    public void ModelCatalog_IncludesEnglishOcr()
+    {
+        var entry = ModelStore.Entry("rec-en");
+        Assert.Equal("OCR Inggris", entry.DisplayName);
+        Assert.Equal(2, entry.Files.Count);
+        Assert.Contains(entry.Files, f => f.CacheName == "rec-en.onnx");
+        Assert.Contains(entry.Files, f => f.CacheName == "rec-en.dict.txt");
+        Assert.Equal("en", OcrLanguage.English.Code);
+        Assert.Equal("Inggris", OcrLanguage.English.DisplayName);
+        Assert.Contains(OcrLanguage.English, OcrLanguage.All);
+        Assert.Equal(OcrLanguage.English, OcrLanguage.FromCode("en"));
+        Assert.Contains(ModelStore.RequiredFor(OcrLanguage.English),
+            e => e.Id == "rec-en");
+    }
+
+    [SkippableFact]
     public void OcrService_TwoLineBubble_JoinsBothLines()
     {
         RequireModels(OcrLanguage.Japanese);

@@ -17,6 +17,8 @@ MODELS=(
   "rec-ko.dict.txt|https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages/korean/dict.txt|a88071c68c01707489baa79ebe0405b7beb5cca229f4fc94cc3ef992328802d7"
   "rec-ch.onnx|https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages/chinese/rec.onnx|26fa4f47060f58e25962b9af6beaee05c8182b90e026c4ecc6db165d9dfdc38a"
   "rec-ch.dict.txt|https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages/chinese/dict.txt|d1979e9f794c464c0d2e0b70a7fe14dd978e9dc644c0e71f14158cdf8342af1b"
+  "rec-en.onnx|https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages/english/rec.onnx|4e16deb22c4da6468bdca539b2cd3c8687825538b67109177c47d359ab994cd7"
+  "rec-en.dict.txt|https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages/english/dict.txt|e025a66d31f327ba0c232e03f407ae8d105e1e709e7ccb3f408aa778c24e70d6"
   "cls-textline.onnx|https://huggingface.co/bukuroo/PPOCRv5-ONNX/resolve/main/ppocrv5-cls.onnx|f4bb53707100c5f3d59ba834eb05bb400369f20aed35d4b26807b1bfadd2a70e"
   "inpaint-lama.onnx|https://huggingface.co/mayocream/lama-manga-onnx/resolve/main/lama-manga.onnx|4512adab295ee5a5e02ccd1bdf8d45dccbac88309d9cff1532ffd5de876f02a4"
 )

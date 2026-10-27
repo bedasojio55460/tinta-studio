@@ -129,7 +129,7 @@
     Halaman Ini / Satu Bab di latar + kemajuan + Batal, overlay
     kotak bernomor di atas halaman + toggle, daftar blok, editor
     teks blok tersimpan otomatis, kartu Model per model + unduh
-    latar). CLI `--ocr <bab> [--lang ja|ko|ch]` + `--download-models`.
+    latar). CLI `--ocr <bab> [--lang ja|ko|ch|en]` + `--download-models`.
   - **Polesan tombol & tata letak (umpan balik Ando dari screenshot
     v0.1.0; referensi resmi dipelajari dari tmp/ref-chisa/)**: gaya
     tombol terpusat di App.axaml — kompak seragam, radius 7, isian
@@ -954,3 +954,35 @@
   jadi cincin kursor tidak ikut terpotret — logika cincin
   mengikuti pola kanvas yang ada). Commit lokal, tidak
   di-push.
+- 2026-10-27: **v0.7.8 — Bahasa OCR keempat: Inggris
+  (permintaan Ando).** Model `en_PP-OCRv5_mobile_rec` dari
+  monkt/paddleocr-onnx (`languages/english/`, keluarga yang
+  sama dengan ko v5 mobile) + kamus 436 karakter; cache
+  `rec-en.onnx` 7.830.888 byte (SHA-256 4e16deb2…) +
+  `rec-en.dict.txt` 1.416 byte (SHA-256 e025a66d…);
+  tercatat di docs/models.md + tools/fetch_models.sh.
+  Integrasi pola persis bahasa lama: `OcrLanguage.English`
+  kode "en" label "Inggris" masuk `All` + `FromCode`;
+  entri katalog `rec-en` "OCR Inggris" (kartu model ikut
+  daftar generik dari katalog); usage CLI
+  `--lang ja|ko|ch|en`. Kontrak I/O = rec v5 lain,
+  kalibrasi empiris lolos: fixture sintetis Inggris
+  ("Hello world" dalam bubble, font Latin sistem) terbaca
+  PERSIS (kemiripan 1,00, keyakinan 1,00, Horizontal) lewat
+  pipeline penuh; uji asap CLI `--ocr --lang en` pada CBZ
+  gambar PIL: 1 blok "Hello world" (det 0,85/ocr 0,99).
+  SortReadingOrder tidak berubah (kolom manga hanya ja).
+  Tes: **103 total — 102 lolos, 0 gagal, 1 skip** (XML
+  tmp/xunit-results-v078.xml; baseline v0.7.7:
+  101/100/0/1). +2 tes: pipeline Inggris + register
+  katalog rec-en. Publish win-x64 ulang: TintaStudio.exe
+  124.695.121 byte, PE32+ GUI (ukuran sama dengan v0.7.7
+  kebetulan bundel — isi terverifikasi: footer v0.7.8 ada,
+  v0.7.7 hilang, string "OCR Inggris" + "rec-en.onnx"
+  ada). Screenshot Deteksi & OCR tmp/tinta-v078-ui.png:
+  dropdown bahasa TERBUKA menampilkan Jepang/Korea/Cina/
+  Inggris + kartu "OCR Inggris — Siap" (bab page-c
+  terbuka, salinan config tmp/shot078-config; config asli
+  tidak disentuh). Batas jujur: teks miring ekstrem /
+  tulisan tangan / huruf hias tidak dijamin. Commit
+  lokal, tidak di-push.

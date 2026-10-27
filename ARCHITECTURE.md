@@ -1,7 +1,7 @@
 # Tinta Studio — Arsitektur
 
 Aplikasi desktop original untuk menerjemahkan & menyunting komik (manga/manhwa):
-impor bab komik dari beragam format, deteksi teks JP/CN/KR (OCR), bersihkan
+impor bab komik dari beragam format, deteksi teks JP/CN/KR/EN (OCR), bersihkan
 bubble, terjemahkan (BYOK / lokal), typeset di kanvas, ekspor bab.
 
 ## Prinsip
@@ -60,7 +60,7 @@ bubble, terjemahkan (BYOK / lokal), typeset di kanvas, ekspor bab.
 
 1. **Fondasi + impor multi-format otomatis** + pustaka bab + penampil
    halaman + proyek `.tinta.json`.
-2. **Deteksi teks & OCR** JP/CN/KR (model ONNX publik) → daftar blok teks
+2. **Deteksi teks & OCR** JP/CN/KR/EN (model ONNX publik) → daftar blok teks
    per halaman.
 3. **Pembersihan bubble**: blok warna solid + inpaint (LaMA) + alat manual.
 4. **Terjemahan BYOK** (Gemini/Groq/OpenRouter) + lokal (Ollama/LM Studio),

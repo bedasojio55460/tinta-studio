@@ -11,16 +11,19 @@ public sealed record OcrLanguage(string Code, string DisplayName)
     public static readonly OcrLanguage Japanese = new("ja", "Jepang");
     public static readonly OcrLanguage Korean = new("ko", "Korea");
     public static readonly OcrLanguage Chinese = new("ch", "Cina");
+    public static readonly OcrLanguage English = new("en", "Inggris");
 
-    public static IReadOnlyList<OcrLanguage> All { get; } = new[] { Japanese, Korean, Chinese };
+    public static IReadOnlyList<OcrLanguage> All { get; } =
+        new[] { Japanese, Korean, Chinese, English };
 
     public static OcrLanguage FromCode(string code) => code switch
     {
         "ja" => Japanese,
         "ko" => Korean,
         "ch" => Chinese,
+        "en" => English,
         _ => throw new ArgumentException(
-            $"Kode bahasa tidak dikenal: '{code}' (pakai ja|ko|ch).", nameof(code)),
+            $"Kode bahasa tidak dikenal: '{code}' (pakai ja|ko|ch|en).", nameof(code)),
     };
 }
 

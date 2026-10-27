@@ -2,7 +2,7 @@
 
 Aplikasi desktop **original** untuk menerjemahkan & menyunting komik
 (manga/manhwa): impor bab dari beragam format, deteksi teks
-(JP/CN/KR), bersihkan bubble, terjemahkan (BYOK / lokal), typeset
+(JP/CN/KR/EN), bersihkan bubble, terjemahkan (BYOK / lokal), typeset
 di kanvas, ekspor bab.
 
 Dibangun dengan prinsip **ATM** (Amati, Tiru, Modifikasi) dari
@@ -10,6 +10,43 @@ fitur referensi — semua kode, nama, logo, dan format proyek adalah
 karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Status: v0.7.8 — Bahasa OCR Keempat: Inggris
+
+Bahasa sumber OCR kini **empat**: Jepang, Korea, Cina, dan —
+baru — **Inggris** (permintaan Ando, supaya komik berbahasa
+Inggris dan halaman campur bisa dibaca tanpa ganti alat).
+
+- **Model**: `en_PP-OCRv5_mobile_rec` dari repo
+  `monkt/paddleocr-onnx` yang sama dengan model ko/ch
+  (keluarga PP-OCRv5 mobile) + kamus 436 karakter (Latin,
+  angka, tanda baca). Berkas cache `rec-en.onnx`
+  (7.830.888 byte) + `rec-en.dict.txt` (1.416 byte);
+  URL + SHA-256 tercatat di
+  [docs/models.md](docs/models.md), diunduh lewat
+  `tools/fetch_models.sh` atau tombol Unduh di kartu model.
+- **Integrasi mengikuti pola bahasa yang ada persis**: kode
+  `en`, label UI "Inggris"; pemilih bahasa halaman Deteksi &
+  OCR bertambah "Inggris"; kartu model baru **"OCR Inggris"**
+  (status + ukuran + tombol Unduh); CLI `--ocr --lang en`
+  (dan `--clean --lang en`) jalan. Kontrak I/O sama dengan
+  rec v5 lain dan dikalibrasi empiris: fixture sintetis
+  terbaca persis. Teks Inggris bersifat horizontal; blok yang
+  terdeteksi vertikal diperlakukan sama seperti bahasa lain
+  (putar 90° dua arah, pilih keyakinan tertinggi) — tidak ada
+  perlakuan khusus yang merusak teks horizontal.
+- **Tes: 103 total — 102 lolos, 0 gagal, 1 skip** (XML
+  `tmp/xunit-results-v078.xml`; baseline v0.7.7:
+  101/100/0/1; skip = loopback sandbox yang sama). 2 tes
+  baru: pipeline Inggris ujung-ke-ujung (bubble "Hello world"
+  terbaca **persis**, kemiripan 1,00, arah Horizontal) +
+  register katalog model `rec-en`. Uji asap CLI manual:
+  `--ocr fixture-en.cbz --lang en` → 1 blok, "Hello world"
+  (det 0,85 / ocr 0,99).
+- **Batas jujur**: model dilatih untuk teks cetak Latin;
+  akurasi pada teks miring ekstrem, tulisan tangan, dan
+  huruf hias (SFX bergaya) tidak dijamin — sama seperti
+  batas model rec lain di katalog ini.
 
 ## Status: v0.7.7 — Penghapus Latar (Penghapus Inpaint Gaya Photoshop)
 
@@ -441,7 +478,7 @@ halaman manga asli, diperbaiki:
 - Blok tersimpan di proyek **`.tinta.json` v2** (berkas v1 tetap
   termuat) per (bab, halaman); halaman **Deteksi & OCR**: overlay
   kotak di atas halaman + daftar blok + teks blok **bisa disunting**
-  (tersimpan otomatis). CLI: `--ocr <bab> [--lang ja|ko|ch]`.
+  (tersimpan otomatis). CLI: `--ocr <bab> [--lang ja|ko|ch|en]`.
 - **Bahasa desain Tahap 2** (mengikuti bahasa aplikasi referensi,
   dimodifikasi dengan aksen teal kami): tombol kompak seragam abu
   gelap radius 7 terpusat di `App.axaml`, toolbar atas di Penampil
@@ -504,7 +541,7 @@ SkiaSharp/PDFium/OnnxRuntime ikut di dalam .exe tunggal.)
 ## Rencana tahap
 
 1. ✅ Fondasi + impor multi-format + pustaka + penampil + proyek
-2. ✅ Deteksi teks & OCR JP/CN/KR (model ONNX publik) + blok teks di proyek
+2. ✅ Deteksi teks & OCR JP/CN/KR/EN (model ONNX publik) + blok teks di proyek
 3. ✅ Pembersihan bubble (blok solid + inpaint LaMA + manual, non-destruktif)
 4. Terjemahan BYOK (Gemini/Groq/OpenRouter) + lokal (Ollama/LM Studio)
 5. Editor typesetting kanvas
