@@ -262,6 +262,23 @@ public static class TypesetService
     /// terverifikasi ≤ ~1,65), sedangkan interior putih TANPA
     /// batas (halaman polos putih, margin kosong) akan bocor ke
     /// seluruh halaman dan teks mendarat jauh dari bubble-nya.
+    /// Konservatif multi-baris (v0.7.3): chord tengah saja tidak
+    /// cukup untuk bubble yang menyempit jauh dari tengahnya
+    /// (awan bergelombang, terutama yang menempel tepi halaman —
+    /// di ketinggian baris atas/bawah interiornya jauh lebih
+    /// sempit, sehingga baris-baris itu luber keluar bubble).
+    /// Sesudah rentang vertikal dari pindai pusat didapat, rentang
+    /// horizontal diukur ULANG pada ketinggian ⅓ dan ⅔ rentang itu
+    /// (aturan pindai sama, dari x pusat blok), lalu tepi final
+    /// tiap sisi = nilai konservatif kedua dari kumpulan
+    /// {pusat, ⅓, ⅔} (kiri: terbesar kedua; kanan: terkecil
+    /// kedua) — satu baris menyimpang tidak mendominasi, tetapi
+    /// penyempitan yang muncul di kedua baris sampel berlaku.
+    /// Hasil tidak pernah MELEBAR melewati chord tengah, dan
+    /// baris sampel yang gagal (lebar &lt; 40% chord tengah /
+    /// tidak beririsan) dibuang. Bubble persegi/oval lebar nyaris
+    /// tidak berubah: chord pada ⅓ &amp; ⅔ tingginya ≈ 94% chord
+    /// tengah untuk elips mulus.
     /// </summary>
     internal static SKRectI EstimateBubbleBox(SKBitmap baseBmp, TextBlock block)
     {
@@ -293,8 +310,63 @@ public static class TypesetService
             return last;
         }
 
+        // Pindai horizontal pada baris y tertentu dari x pusat —
+        // aturan sama persis seperti pindai pusat (langkah 2,
+        // berhenti sesudah > 3 sampel non-interior, pagar 2×
+        // lebar kotak OCR per arah).
+        int ScanRow(int y, int dx)
+        {
+            int limit = ocr.Width * 2;
+            int x = cx, last = cx, bad = 0, dist = 0;
+            while (x >= 0 && x < w && dist <= limit)
+            {
+                if (IsBubbleInterior(baseBmp.GetPixel(x, y)))
+                {
+                    last = x;
+                    bad = 0;
+                }
+                else if (++bad > 3)
+                    break;
+                x += dx * 2;
+                dist += 2;
+            }
+            return last;
+        }
+
         int left = Scan(-1, 0), right = Scan(1, 0);
         int top = Scan(0, -1), bottom = Scan(0, 1);
+
+        // v0.7.3: ukur ulang rentang horizontal pada ketinggian
+        // ⅓ dan ⅔ rentang vertikal mentah, lalu persempit tepi
+        // ke nilai konservatif kedua (lihat catatan di atas).
+        int centerLeft = left, centerRight = right;
+        int rawWidth = centerRight - centerLeft + 1;
+        int spanY = bottom - top;
+        if (rawWidth >= 8 && spanY >= 24)
+        {
+            var lefts = new List<int> { centerLeft };
+            var rights = new List<int> { centerRight };
+            foreach (int y in new[] { top + spanY / 3, top + 2 * spanY / 3 })
+            {
+                if (y == cy)
+                    continue;
+                int rowLeft = ScanRow(y, -1), rowRight = ScanRow(y, 1);
+                int rowWidth = rowRight - rowLeft + 1;
+                // Baris gagal (interior tak ditemukan / menyusut
+                // tak masuk akal) tidak ikut menentukan.
+                if (rowWidth < Math.Max(8, rawWidth * 2 / 5)
+                    || rowLeft > centerRight || rowRight < centerLeft)
+                    continue;
+                lefts.Add(rowLeft);
+                rights.Add(rowRight);
+            }
+            left = ConservativeEdge(lefts, leftSide: true);
+            right = ConservativeEdge(rights, leftSide: false);
+            // Tidak pernah melebar melewati chord tengah.
+            left = Math.Max(left, centerLeft);
+            right = Math.Min(right, centerRight);
+        }
+
         int insetX = Math.Max(6, (right - left + 1) * 4 / 100);
         int insetY = Math.Max(6, (bottom - top + 1) * 4 / 100);
         if (left > 0) left += insetX;
@@ -306,6 +378,21 @@ public static class TypesetService
             || box.Width < 8 || box.Height < 8)
             return ocr;
         return box;
+    }
+
+    /// <summary>Tepi konservatif kedua dari kumpulan sampel tepi
+    /// satu sisi (v0.7.3): untuk sisi kiri nilai terbesar kedua,
+    /// untuk sisi kanan nilai terkecil kedua. Satu sampel (hanya
+    /// chord tengah yang sah) → nilai itu sendiri; dua sampel →
+    /// yang lebih konservatif dari keduanya.</summary>
+    private static int ConservativeEdge(List<int> samples, bool leftSide)
+    {
+        var sorted = samples.OrderBy(v => v).ToList();
+        if (sorted.Count == 1)
+            return sorted[0];
+        if (sorted.Count == 2)
+            return leftSide ? sorted[1] : sorted[0];
+        return leftSide ? sorted[^2] : sorted[1];
     }
 
     /// <summary>

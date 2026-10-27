@@ -338,6 +338,168 @@ public sealed class SmartTypesetTests
         Assert.Equal(1633, parts[right].Bottom);
     }
 
+    // ─── Regresi v0.7.3: estimator konservatif multi-baris ───────
+
+    /// <summary>Bubble awan (lingkaran utama + tonjolan 4 arah,
+    /// lekukan diagonal di antaranya) menempel tepi kiri halaman
+    /// 1020×1254 — mereplikasi sampel asli "page-c".</summary>
+    private static SKBitmap CloudBitmap()
+    {
+        var bmp = new SKBitmap(1020, 1254);
+        using var canvas = new SKCanvas(bmp);
+        canvas.Clear(new SKColor(32, 40, 48));
+        using var fill = new SKPaint
+        {
+            Color = SKColors.White, Style = SKPaintStyle.Fill, IsAntialias = true,
+        };
+        canvas.DrawCircle(new SKPoint(180, 640), 150, fill);
+        canvas.DrawCircle(new SKPoint(55, 640), 55, fill);
+        canvas.DrawCircle(new SKPoint(305, 640), 55, fill);
+        canvas.DrawCircle(new SKPoint(180, 515), 55, fill);
+        canvas.DrawCircle(new SKPoint(180, 765), 55, fill);
+        canvas.Flush();
+        return bmp;
+    }
+
+    [Fact]
+    public void EstimateBubbleBox_ScallopedCloudAtPageEdge_NarrowedFromCenterChord()
+    {
+        using var bmp = CloudBitmap();
+        var block = Block(70, 545, 150, 190,
+            "Kalau gini, mulai musim semi kita bareng lagi, ya!!");
+        var box = TypesetService.EstimateBubbleBox(bmp, block);
+        _out.WriteLine($"kotak awan: {box}");
+        // Algoritme lama (chord tengah saja) memberi Left=15,
+        // Width=331: tepi kiri nyaris di tepi halaman walau
+        // interior pada ketinggian ⅓ & ⅔ jauh lebih sempit.
+        // Estimator multi-baris harus menarik tepi kiri masuk
+        // dan mempersempit kotak mengikuti interior baris sampel.
+        Assert.InRange(box.Left, 45, 70);
+        Assert.InRange(box.Width, 230, 275);
+        Assert.True(box.Width < 331,
+            "Kotak harus lebih sempit dari kotak chord-tengah lama (331).");
+    }
+
+    [Fact]
+    public void Smart_CloudBubbleAtPageEdge_InkStaysInBubble()
+    {
+        using var bmp = CloudBitmap();
+        // Teks panjang (6 baris) — tumpukan mengisi sebagian
+        // besar kotak, baris teratas/terbawah duduk di daerah
+        // bubble yang menyempit, seperti cacat page-c asli.
+        var block = Block(70, 545, 150, 190,
+            "Kalau gini, mulai musim semi nanti kita bisa pergi " +
+            "bareng lagi, ya!! Aku sudah nggak sabar nunggu hari itu datang.");
+        var page = PageWith(block);
+        int n = TypesetService.SmartAutoTypesetPage(page, bmp);
+        Assert.Equal(1, n);
+        var box = TypesetService.RenderBox(block, block.Typeset!);
+        _out.WriteLine($"kotak render awan: {box}, ukuran {block.Typeset!.FontSize}");
+        using var final = TypesetService.RenderFinalBitmap(bmp, page);
+        int inkOnDark = 0, inkOutsideBox = 0, minInkX = int.MaxValue;
+        for (int y = 0; y < final.Height; y++)
+        for (int x = 0; x < final.Width; x++)
+        {
+            var bg = bmp.GetPixel(x, y);
+            if (bg == final.GetPixel(x, y)) continue;
+            if (x < minInkX) minInkX = x;
+            bool interior = Math.Min(bg.Red, Math.Min(bg.Green, bg.Blue)) > 200
+                && Math.Max(bg.Red, Math.Max(bg.Green, bg.Blue))
+                 - Math.Min(bg.Red, Math.Min(bg.Green, bg.Blue)) < 28;
+            if (!interior) inkOnDark++;
+            if (x < box.Left || x >= box.Right || y < box.Top || y >= box.Bottom)
+                inkOutsideBox++;
+        }
+        _out.WriteLine($"tinta di latar gelap {inkOnDark}, di luar kotak {inkOutsideBox}, x tinta terkiri {minInkX}");
+        // Kode lama: 239 px tinta di latar gelap, tinta mulai
+        // x=17. Sesudah perbaikan: sisa ≤ 24 px (baris ekstrem
+        // di luar pita sampel ⅓–⅔ + antialias tepi) dan tinta
+        // terkiri jauh di dalam bubble.
+        Assert.True(inkOnDark <= 24,
+            $"Tinta di luar bubble: {inkOnDark} px (lama: 239).");
+        Assert.True(minInkX >= 50,
+            $"Tinta terkiri x={minInkX} masih mepet tepi halaman/bubble.");
+        Assert.Equal(0, inkOutsideBox);
+    }
+
+    [Fact]
+    public void EstimateBubbleBox_PageBGeometry_ShrinkWithin10Percent()
+    {
+        // Geometri replika tiga bubble halaman demo page-b yang
+        // hasilnya sudah bagus di v0.7.1/v0.7.2 (elips + blok
+        // asli). Lebar kotak lama terukur pada kode sebelum
+        // v0.7.3: reaksi 107, Sakamoto 147, toko 203. Aturan
+        // multi-baris tidak boleh menyusutkan kotak-kotak ini
+        // lebih dari 10% (dan tidak boleh melebar).
+        var cases = new[]
+        {
+            (Ellipse: new SKRect(1366, 1393, 1486, 1705),
+             Block: Block(1391, 1415, 96, 269, "Reaksimu selalu lucu, sih."),
+             OldWidth: 107),
+            (Ellipse: new SKRect(1105, 173, 1265, 381),
+             Block: Block(1132, 202, 103, 146, "Sakamoto-kun?"),
+             OldWidth: 147),
+            (Ellipse: new SKRect(810, 1430, 1032, 1856),
+             Block: Block(842, 1477, 151, 353, "Ke pegawai toko aja dia pakai bahasa sopan. Hebat, ya."),
+             OldWidth: 203),
+        };
+        foreach (var (ellipse, block, oldWidth) in cases)
+        {
+            var bmp = new SKBitmap(1487, 2048);
+            using (var canvas = new SKCanvas(bmp))
+            {
+                canvas.Clear(new SKColor(32, 40, 48));
+                using var fill = new SKPaint
+                {
+                    Color = SKColors.White, Style = SKPaintStyle.Fill, IsAntialias = true,
+                };
+                canvas.DrawOval(ellipse, fill);
+                canvas.Flush();
+            }
+            var box = TypesetService.EstimateBubbleBox(bmp, block);
+            _out.WriteLine($"blok ({block.X},{block.Y}): lebar lama {oldWidth} -> baru {box.Width}");
+            Assert.InRange(box.Width,
+                (int)Math.Ceiling(oldWidth * 0.90), oldWidth + 2);
+            bmp.Dispose();
+        }
+    }
+
+    [Fact]
+    public void EstimateBubbleBox_TallEllipse_AndRectangle()
+    {
+        // Elips tinggi rasio 1:2 (200×400): chord pada ⅓ & ⅔
+        // tinggi ≈ 94% chord tengah → lebar kotak ≈ 87% chord
+        // tengah (sesudah inset), BUKAN selebar chord tengah.
+        using (var bmp = PageWithBubbles(new SKRectI(400, 200, 600, 600)))
+        {
+            var block = Block(450, 350, 100, 100, "Halo!");
+            var box = TypesetService.EstimateBubbleBox(bmp, block);
+            _out.WriteLine($"elips tinggi: {box}");
+            Assert.InRange(box.Width, 165, 182);
+            Assert.True(box.Width < 185,
+                "Harus menyempit dari hasil chord-tengah lama (185).");
+        }
+        // Persegi panjang: semua baris selebar chord penuh →
+        // lebar ≈ chord penuh sesudah inset (tidak berubah
+        // dari perilaku lama, 553).
+        var rectBmp = new SKBitmap(MangaFixture.PageWidth, MangaFixture.PageHeight);
+        using (var canvas = new SKCanvas(rectBmp))
+        {
+            canvas.Clear(new SKColor(32, 40, 48));
+            using var fill = new SKPaint
+            {
+                Color = SKColors.White, Style = SKPaintStyle.Fill, IsAntialias = true,
+            };
+            canvas.DrawRect(new SKRect(200, 200, 800, 600), fill);
+            canvas.Flush();
+        }
+        var rectBlock = Block(400, 300, 200, 200, "Halo!");
+        var rectBox = TypesetService.EstimateBubbleBox(rectBmp, rectBlock);
+        _out.WriteLine($"persegi: {rectBox}");
+        Assert.InRange(rectBox.Width, 540, 560);
+        rectBmp.Dispose();
+    }
+
     /// <summary>Regresi #2 (sumbu Y diiris): dua blok bertumpuk
     /// dalam satu bubble — sumbu non-iris (X) harus rentang ukur
     /// anggota sendiri, bukan lebar union.</summary>

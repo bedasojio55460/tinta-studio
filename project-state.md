@@ -770,3 +770,31 @@
   Otomatis" + catatan cadangan/Urungkan Poles) dan pengingat
   satu baris di halaman Typesetting. Teks saja, tanpa
   perubahan logika.
+- 2026-10-27: **v0.7.3 — estimator bubble konservatif
+  multi-baris** (temuan verifikasi agen utama pada sampel
+  asli baru "page-c": bubble AWAN menempel tepi kiri —
+  chord tengah terlalu lebar untuk baris atas/bawah,
+  huruf pertama luber tepi kiri bubble; bubble oval kanan
+  sempurna). EstimateBubbleBox kini mengukur ulang rentang
+  horizontal pada ketinggian ⅓ & ⅔ rentang vertikal mentah
+  (aturan pindai sama, pagar 2× OCR tetap), tepi final =
+  konservatif kedua dari {pusat, ⅓, ⅔} per sisi, tidak
+  pernah melebar melewati chord tengah, baris sampel gagal
+  (lebar < 40% chord tengah / tak beririsan) dibuang.
+  Simetris vertikal belum diterapkan (prioritas horizontal
+  sesuai brief). Terukur pada replika sintetis: awan tepi
+  halaman Left 15→52, lebar 331→255, tinta di luar bubble
+  239→16 px; replika page-b menyusut 5,6–6,8% (pagar
+  regresi ±10%); persegi panjang tetap 553; elips tinggi
+  1:2 → 173 (≈87% chord 200); elips lebar tes lama tetap
+  lolos (607 ≥ 595). 4 tes regresi baru di
+  SmartTypesetTests (awan geometri, awan tinta, pagar
+  page-b, elips tinggi + persegi) — 3 gagal pada kode lama
+  (dibuktikan dengan stash), pagar page-b lolos di kedua
+  versi sesuai desainnya. Tes final: **90 total — 89 lolos,
+  0 gagal, 1 skip** (XML tmp/xunit-results-v073.xml;
+  baseline v0.7.2: 86/85/0/1). Batas jujur: sisa tinta di
+  luar bubble pada tumpukan teks yang mengisi > ⅔ tinggi
+  bubble berlekuk kuat bisa tersisa belasan px di baris
+  ekstrem di luar pita sampel ⅓–⅔; verifikasi ulang
+  halaman asli page-c di tangan agen utama.

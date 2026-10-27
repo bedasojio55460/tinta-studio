@@ -11,6 +11,35 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.7.3 — Estimator Bubble Konservatif Multi-Baris
+
+Cacat yang ditemukan verifikasi independen pada sampel asli
+baru (halaman berwarna, bubble kiri berbentuk AWAN menempel
+tepi halaman): kotak pintar dari chord tengah terlalu lebar
+untuk baris atas/bawah — interior bubble pada ketinggian itu
+jauh lebih sempit, sehingga huruf pertama baris-baris itu
+mepet/luber keluar tepi kiri bubble. Bubble oval biasa tidak
+terdampak.
+
+- **EstimateBubbleBox kini mengukur ulang rentang
+  horizontal pada ketinggian ⅓ dan ⅔** rentang vertikal hasil
+  pindai pusat (aturan pindai interior sama persis, dari x
+  pusat blok, pagar 2× kotak OCR tetap berlaku), lalu tepi
+  final tiap sisi = **nilai konservatif kedua** dari
+  {pusat, ⅓, ⅔} (kiri: terbesar kedua; kanan: terkecil
+  kedua). Hasil tidak pernah melebar melewati chord tengah;
+  baris sampel yang gagal ukur dibuang. Perlakuan simetris
+  untuk rentang vertikal sengaja belum diterapkan (prioritas
+  horizontal sesuai temuan).
+- **Dampak terukur:** replika sintetis awan di tepi halaman —
+  tepi kiri kotak 15 → 52, lebar 331 → 255, tinta di luar
+  bubble 239 → 16 px. Geometri page-b yang sudah bagus
+  menyusut ≤ 7% (di bawah pagar regresi 10%); persegi panjang
+  tidak berubah; elips tinggi 1:2 → lebar ≈ 87% chord
+  tengah. Tes: **90 total — 89 lolos, 0 gagal, 1 skip** (skip
+  lama sandbox yang sama); 4 tes regresi baru, 3 di antaranya
+  gagal pada kode lama.
+
 ## Status: v0.7.2 — Petunjuk Prosedur di Aplikasi
 
 Teks petunjuk statis di dalam aplikasi (permintaan Ando):
