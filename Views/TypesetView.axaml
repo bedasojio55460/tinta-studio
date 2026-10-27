@@ -33,6 +33,13 @@
             </Grid>
         </Border>
 
+        <!-- Bar petunjuk: terapkan otomatis sesudah teks final -->
+        <Border DockPanel.Dock="Top" Background="#101216"
+                BorderBrush="#26292F" BorderThickness="0,0,0,1" Padding="10,5">
+            <TextBlock Foreground="#8A939E" FontSize="12" TextWrapping="Wrap"
+                       Text="Jalankan Terapkan Otomatis sesudah teks final (termasuk Poles AI) — ukuran &amp; posisi diukur dari teks terakhir." />
+        </Border>
+
         <Grid ColumnDefinitions="196,*,368" Margin="12">
             <!-- Panel halaman kiri -->
             <Border Background="#17191F" CornerRadius="7">

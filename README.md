@@ -11,6 +11,16 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.7.2 — Petunjuk Prosedur di Aplikasi
+
+Teks petunjuk statis di dalam aplikasi (permintaan Ando):
+halaman Terjemahan kini memuat bar petunjuk urutan kerja
+"Terjemahkan → Poles AI → Terapkan Otomatis" beserta catatan
+Poles AI (perlu penyedia aktif; teks sebelum poles dicadangkan
+otomatis, bisa dikembalikan lewat Urungkan Poles), dan halaman
+Typesetting memuat pengingat menjalankan Terapkan Otomatis
+sesudah teks final. Tanpa perubahan logika.
+
 ## Status: v0.7.1 — Perbaikan Typeset Otomatis Pintar
 
 Dua cacat yang ditemukan verifikasi independen v0.7.0 pada

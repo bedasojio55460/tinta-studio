@@ -764,3 +764,9 @@
     lebar dari kotaknya tetap dipecah mesin render (perilaku
     lama yang disengaja untuk kata mustahil); (3) verifikasi
     .exe di Windows asli tetap menunggu PC Ando.
+- 2026-10-27: **v0.7.2 — petunjuk prosedur di aplikasi**
+  (permintaan Ando): bar petunjuk statis di halaman
+  Terjemahan (urutan "Terjemahkan → Poles AI → Terapkan
+  Otomatis" + catatan cadangan/Urungkan Poles) dan pengingat
+  satu baris di halaman Typesetting. Teks saja, tanpa
+  perubahan logika.
