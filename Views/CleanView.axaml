@@ -1,0 +1,163 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TintaStudio.ViewModels"
+             xmlns:svc="using:TintaStudio.Services"
+             x:Class="TintaStudio.Views.CleanView"
+             x:DataType="vm:MainWindowViewModel">
+    <DockPanel>
+        <!-- Toolbar atas: mode + aksi bersihkan kiri, judul tengah,
+             navigasi chevron – X/Y – chevron kanan -->
+        <Border DockPanel.Dock="Top" Background="#101216"
+                BorderBrush="#26292F" BorderThickness="0,0,0,1" Padding="10,7">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <ComboBox ItemsSource="{Binding CleanModes}"
+                              SelectedItem="{Binding SelectedCleanMode}" Width="110" />
+                    <Button x:Name="CleanPageButton" Classes="primary" Content="Bersihkan Halaman Ini" />
+                    <Button x:Name="CleanChapterButton" Content="Bersihkan Satu Bab" />
+                    <Button x:Name="CancelCleanButton" Content="Batal"
+                            IsVisible="{Binding IsCleaning}" />
+                    <ProgressBar IsVisible="{Binding IsCleaning}"
+                                 Value="{Binding CleanProgress}" Minimum="0" Maximum="1"
+                                 Width="130" Height="6" VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding ChapterTitle}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           FontSize="13" FontWeight="SemiBold"
+                           TextTrimming="CharacterEllipsis" Margin="12,0" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                    <ToggleButton Content="Asli" IsChecked="{Binding ShowOriginal}"
+                                  ToolTip.Tip="Tahan untuk membandingkan: tampilkan halaman asli (sebelum)" />
+                    <ToggleButton Content="Kotak" IsChecked="{Binding ShowCleanOverlay}"
+                                  ToolTip.Tip="Tampilkan/sembunyikan kotak blok" />
+                    <Button Classes="tool" Content="&#x276E;" Command="{Binding PrevPageCommand}" />
+                    <TextBlock Text="{Binding PageIndicatorShort}" VerticalAlignment="Center"
+                               FontSize="13" MinWidth="34" TextAlignment="Center" />
+                    <Button Classes="tool" Content="&#x276F;" Command="{Binding NextPageCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Bar alat manual: penetes / kuas / penghapus / warna -->
+        <Border DockPanel.Dock="Top" Background="#101216"
+                BorderBrush="#26292F" BorderThickness="0,0,0,1" Padding="10,5">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <ToggleButton x:Name="EyedropperToggle" Content="Penetes"
+                                  ToolTip.Tip="Klik piksel di kanvas untuk mengambil warna isi" />
+                    <ToggleButton x:Name="BrushToggle" Content="Kuas"
+                                  ToolTip.Tip="Lukis warna di atas hasil bersih" />
+                    <ToggleButton x:Name="EraserToggle" Content="Penghapus"
+                                  ToolTip.Tip="Kembalikan piksel asli di area sapuan" />
+                    <TextBlock Text="Ukuran" VerticalAlignment="Center"
+                               Foreground="#8A939E" FontSize="12" Margin="6,0,0,0" />
+                    <Slider Minimum="4" Maximum="120" Width="110"
+                            Value="{Binding BrushSize}" VerticalAlignment="Center" />
+                    <Border Width="22" Height="22" CornerRadius="5"
+                            BorderBrush="#3D434E" BorderThickness="1"
+                            Background="{Binding CleanFillBrush}" Margin="6,0,0,0" />
+                    <TextBox Text="{Binding CleanFillHex}" Width="86"
+                             ToolTip.Tip="Warna isi manual &amp; kuas (#RRGGBB)" />
+                    <CheckBox Content="Sampel otomatis" IsChecked="{Binding UseAutoFill}"
+                              ToolTip.Tip="Warna Solid diambil dari interior bubble"
+                              VerticalAlignment="Center" />
+                    <Button Content="Urungkan" Command="{Binding UndoCleanCmd}"
+                            ToolTip.Tip="Batalkan operasi/sapuan bersih terakhir halaman ini" />
+                </StackPanel>
+                <TextBlock Grid.Column="2" Text="{Binding CleanOpsInfo}" Foreground="#8A939E"
+                           FontSize="12" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <Grid ColumnDefinitions="196,*,344" Margin="12">
+            <!-- Panel halaman kiri -->
+            <Border Background="#17191F" CornerRadius="7">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Classes="section" Text="HALAMAN"
+                               Margin="10,8,10,4" />
+                    <ListBox ItemsSource="{Binding Pages}"
+                             SelectedIndex="{Binding SelectedPageIndex}"
+                             Background="Transparent"
+                             ItemTemplate="{StaticResource PageThumbTemplate}" />
+                </DockPanel>
+            </Border>
+
+            <!-- Kanvas halaman bersih + overlay + alat manual -->
+            <Border Grid.Column="1" Background="#0C0D10" Margin="12,0" CornerRadius="7">
+                <Grid x:Name="StageGrid" Margin="10" Background="Transparent">
+                    <Image x:Name="PageImage" Source="{Binding CleanCanvasBitmap}"
+                           Stretch="Uniform" />
+                    <Canvas x:Name="OverlayCanvas" Background="Transparent"
+                            IsHitTestVisible="False" />
+                </Grid>
+            </Border>
+
+            <!-- Panel kanan: model inpaint + daftar blok -->
+            <ScrollViewer Grid.Column="2">
+                <StackPanel Spacing="16" Margin="2,0,6,0">
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="section" Text="MODEL INPAINT" />
+                        <ContentControl Content="{Binding InpaintModelStatus}">
+                            <ContentControl.ContentTemplate>
+                                <DataTemplate x:DataType="vm:ModelStatusViewModel">
+                                    <Border Background="#17191F" CornerRadius="7" Padding="10,8">
+                                        <StackPanel Spacing="3">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                                       FontSize="13" />
+                                            <TextBlock Text="{Binding Role}" Foreground="#8A939E"
+                                                       FontSize="11" TextWrapping="Wrap" />
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Text="{Binding StatusText}"
+                                                           Foreground="#2DD4BF" FontSize="12"
+                                                           VerticalAlignment="Center"
+                                                           TextWrapping="Wrap" />
+                                                <Button Grid.Column="1" Classes="tool" Content="Unduh"
+                                                        Command="{Binding DownloadCommand}"
+                                                        IsVisible="{Binding !IsReady}" />
+                                            </Grid>
+                                            <ProgressBar IsVisible="{Binding IsDownloading}"
+                                                         Value="{Binding DownloadProgress}"
+                                                         Minimum="0" Maximum="1" Height="5" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ContentControl.ContentTemplate>
+                        </ContentControl>
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="section" Text="{Binding CleanBlocksHeader}" />
+                        <ListBox ItemsSource="{Binding CleanBlocks}" Height="330"
+                                 Background="#17191F">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:CleanBlockItemViewModel">
+                                    <StackPanel Spacing="3" Margin="2">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="{Binding Number, StringFormat='#{0}'}"
+                                                       Foreground="#2DD4BF" FontSize="11"
+                                                       FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Meta}" Foreground="#8A939E"
+                                                       FontSize="11" />
+                                            <TextBlock Text="{Binding StatusText}" Foreground="#8A939E"
+                                                       FontSize="11" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding TextPreview}" FontSize="12"
+                                                   MaxLines="1" TextTrimming="CharacterEllipsis" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <ComboBox ItemsSource="{Binding Modes}"
+                                                      SelectedItem="{Binding Mode}" Width="104" />
+                                            <Button Classes="tool" Content="Terapkan"
+                                                    Command="{Binding ApplyCommand}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock Text="Mode Solid memakai warna sampel otomatis dari interior bubble, atau warna manual bila 'Sampel otomatis' dimatikan. Inpaint mengisi mengikuti latar (perlu model LaMA)."
+                                   Foreground="#8A939E" FontSize="11" TextWrapping="Wrap" />
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </DockPanel>
+</UserControl>

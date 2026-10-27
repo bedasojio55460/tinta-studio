@@ -27,7 +27,16 @@ internal static class Program
             Environment.ExitCode = RunOcr(args);
             return;
         }
-        // Mode CLI: --download-models — unduh semua model Tahap 2.
+        // Mode CLI: --clean <berkas/folder komik> [--mode solid|inpaint]
+        // [--out <folder>] [--lang ja|ko|ch] — bersihkan bubble semua
+        // halaman (deteksi dulu bila proyek belum punya blok), tulis
+        // gambar bersih ke folder keluar; operasi tersimpan di proyek.
+        if (args.Length >= 2 && args[0] == "--clean")
+        {
+            Environment.ExitCode = RunClean(args);
+            return;
+        }
+        // Mode CLI: --download-models — unduh semua model katalog.
         if (args.Length >= 1 && args[0] == "--download-models")
         {
             Environment.ExitCode = RunDownloadModels();
@@ -40,7 +49,9 @@ internal static class Program
             Console.WriteLine("  TintaStudio                              buka antarmuka grafis");
             Console.WriteLine("  TintaStudio --info <path>                tampilkan info bab komik (format, halaman)");
             Console.WriteLine("  TintaStudio --ocr <path> [--lang ja|ko|ch]  deteksi + OCR, simpan ke proyek");
-            Console.WriteLine("  TintaStudio --download-models            unduh model deteksi/OCR ke cache");
+            Console.WriteLine("  TintaStudio --clean <path> [--mode solid|inpaint] [--out <folder>] [--lang ja|ko|ch]");
+            Console.WriteLine("                                           bersihkan bubble, tulis gambar bersih");
+            Console.WriteLine("  TintaStudio --download-models            unduh model deteksi/OCR/inpaint ke cache");
             return;
         }
 
@@ -150,6 +161,138 @@ internal static class Program
         {
             Console.Error.WriteLine($"Error: {ex.Message}");
             return 1;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            if (Environment.GetEnvironmentVariable("TINTA_DEBUG") == "1")
+                Console.Error.WriteLine(ex.ToString());
+            return 1;
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(workDir)) Directory.Delete(workDir, recursive: true);
+            }
+            catch (Exception)
+            {
+                // berkas sementara gagal dihapus bukan masalah besar
+            }
+        }
+    }
+
+    private static int RunClean(string[] args)
+    {
+        string path = args[1];
+        var mode = Models.CleanMode.Solid;
+        var lang = Services.OcrLanguage.Japanese;
+        string? outDir = null;
+        for (int i = 2; i + 1 < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--mode":
+                    mode = args[i + 1] switch
+                    {
+                        "solid" => Models.CleanMode.Solid,
+                        "inpaint" => Models.CleanMode.Inpaint,
+                        var other => throw new ArgumentException(
+                            $"Mode tidak dikenal: '{other}' (pakai solid|inpaint)."),
+                    };
+                    break;
+                case "--lang":
+                    try
+                    {
+                        lang = Services.OcrLanguage.FromCode(args[i + 1]);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        Console.Error.WriteLine($"Error: {ex.Message}");
+                        return 2;
+                    }
+                    break;
+                case "--out":
+                    outDir = args[i + 1];
+                    break;
+            }
+        }
+        outDir ??= Path.Combine(Directory.GetCurrentDirectory(), "tinta-cleaned");
+        var workDir = Path.Combine(
+            Path.GetTempPath(), "tinta-studio-clean-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var chapter = ComicImport.OpenChapter(path, workDir);
+            var (project, projectChapter) = ProjectStore.GetOrCreate(chapter);
+
+            // Proyek belum punya blok sama sekali → deteksi+OCR dulu
+            // (bahasa --lang) untuk semua halaman.
+            if (projectChapter.Pages.Sum(p => p.Blocks.Count) == 0)
+            {
+                using var pipeline = new DetectOcrPipeline();
+                var progress = new Progress<(int Done, int Total)>(p =>
+                    Console.Error.WriteLine($"  deteksi halaman {p.Done}/{p.Total}…"));
+                pipeline.AnalyzeChapterAsync(
+                    chapter, projectChapter, lang, progress,
+                    CancellationToken.None).GetAwaiter().GetResult();
+            }
+
+            if (mode == Models.CleanMode.Inpaint && !ModelStore.InpaintReady)
+                throw new ModelMissingException(
+                    new[] { ModelStore.InpaintEntry });
+
+            // Catat operasi untuk semua blok, bangun gambar bersih.
+            using var clean = new CleanService();
+            Directory.CreateDirectory(outDir);
+            int totalCleaned = 0;
+            for (int i = 0; i < chapter.Pages.Count; i++)
+            {
+                var page = projectChapter.PageAt(i);
+                foreach (var block in page.Blocks)
+                    CleanService.SetBlockOperation(page, block, mode, fillColor: null);
+                var info = chapter.Pages[i];
+                string outFile = Path.Combine(outDir, $"page-{i + 1:D3}.png");
+                if (page.Blocks.Count == 0)
+                {
+                    File.Copy(info.WorkPath, outFile, overwrite: true);
+                    Console.WriteLine(
+                        $"Halaman {i + 1}: 0 blok — disalin apa adanya → {outFile}");
+                    continue;
+                }
+                using var original = SkiaSharp.SKBitmap.Decode(info.WorkPath)
+                    ?? throw new InvalidDataException(
+                        $"Halaman kerja tidak terbaca: {info.SourceName}");
+                using var cleaned = clean.BuildCleanedPage(
+                    original, page, CancellationToken.None);
+                using (var img = SkiaSharp.SKImage.FromBitmap(cleaned))
+                using (var data = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100))
+                using (var fs = File.Create(outFile))
+                    data.SaveTo(fs);
+                totalCleaned += page.Blocks.Count;
+                Console.WriteLine(
+                    $"Halaman {i + 1}: {page.Blocks.Count} blok dibersihkan " +
+                    $"({mode.ToString().ToLowerInvariant()}) → {outFile}");
+            }
+            ProjectStore.Save(project, chapter.SourcePath);
+            Console.WriteLine(
+                $"Bersih selesai: {chapter.Title} — {totalCleaned} blok, " +
+                $"mode {mode.ToString().ToLowerInvariant()}, keluaran di {outDir}");
+            return 0;
+        }
+        catch (ModelMissingException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 3;
+        }
+        catch (ComicImportException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 2;
         }
         catch (Exception ex)
         {

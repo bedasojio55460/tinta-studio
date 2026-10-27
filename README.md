@@ -11,6 +11,32 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.3.0 — Tahap 3 (Pembersihan Bubble)
+
+- **Tiga cara membersihkan teks bubble**, semuanya **non-destruktif**
+  (berkas asli tak pernah ditimpa; gambar bersih dibangun ulang dari
+  daftar operasi yang tersimpan di proyek `.tinta.json` **v3**, berkas
+  v1/v2 tetap termuat):
+  - **Blok solid** — isi kotak blok dengan warna: sampel otomatis
+    dari interior bubble (bawaan) atau warna manual lewat
+    **eyedropper** (klik piksel di kanvas) / isian hex;
+  - **Inpaint LaMA** — model LaMA manga (ONNX publik, unduhan
+    terpisah ±207 MB — lihat docs/models.md) mengisi area teks
+    mengikuti latar; dijalankan per potongan blok+margin, mask dari
+    tinta di dalam kotak blok, tempelan hanya di dalam mask
+    bertepi lembut;
+  - **Manual** — kuas warna + penghapus (mengembalikan piksel asli)
+    di kanvas; sapuan tercatat sebagai bagian dari operasi halaman.
+- Halaman **Bersihkan**: toolbar mode + Bersihkan Halaman Ini /
+  Satu Bab (latar + kemajuan + batal), toggle **Asli** untuk
+  membandingkan sebelum/sesudah, daftar blok dengan mode per blok
+  + Terapkan, tombol **Urungkan**, kartu model Inpaint LaMA.
+  CLI: `--clean <bab> [--mode solid|inpaint] [--out <folder>]`
+  (deteksi dijalankan dulu bila proyek belum punya blok).
+- Gambar dasar hasil operasi di-cache per (bab, halaman) dengan
+  tanda tangan operasi; sapuan manual dikomposit di atasnya, jadi
+  menyunting sapuan tidak memicu inpaint ulang.
+
 ## Status: v0.2.0 — Tahap 2 (Deteksi & OCR)
 
 - **Deteksi teks komik** dengan model ONNX publik (RT-DETR-v2 int8,
@@ -68,6 +94,7 @@ dotnet run --project TintaStudio.csproj            # antarmuka grafis
 dotnet run --project TintaStudio.csproj -- --info bab.cbz   # info bab via CLI
 tools/fetch_models.sh                               # unduh model deteksi/OCR
 dotnet run --project TintaStudio.csproj -- --ocr bab.cbz --lang ja  # deteksi+OCR via CLI
+dotnet run --project TintaStudio.csproj -- --clean bab.cbz --mode inpaint --out bersih/  # bersihkan via CLI
 ```
 
 Tes (xUnit): `dotnet test` — di VM sandbox ini kanal soket
@@ -88,7 +115,7 @@ SkiaSharp/PDFium/OnnxRuntime ikut di dalam .exe tunggal.)
 
 1. ✅ Fondasi + impor multi-format + pustaka + penampil + proyek
 2. ✅ Deteksi teks & OCR JP/CN/KR (model ONNX publik) + blok teks di proyek
-3. Pembersihan bubble (blok solid + inpaint LaMA + manual)
+3. ✅ Pembersihan bubble (blok solid + inpaint LaMA + manual, non-destruktif)
 4. Terjemahan BYOK (Gemini/Groq/OpenRouter) + lokal (Ollama/LM Studio)
 5. Editor typesetting kanvas
 6. Ekspor (CBZ/PDF/folder) + packaging .exe

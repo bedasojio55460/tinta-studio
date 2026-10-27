@@ -1,4 +1,4 @@
-# Katalog Model — Deteksi & OCR (Tahap 2)
+# Katalog Model — Deteksi & OCR (Tahap 2) + Inpaint (Tahap 3)
 
 Semua model adalah model **publik berlisensi terbuka**, diunduh
 terprogram ke `~/.cache/tinta-studio/models/` oleh
@@ -13,6 +13,7 @@ masuk git. Runtime: **Microsoft.ML.OnnxRuntime** (CPU).
 | `rec-ko.onnx` + `rec-ko.dict.txt` | OCR Korea (PP-OCRv5 mobile rec) | [monkt/paddleocr-onnx](https://huggingface.co/monkt/paddleocr-onnx) `languages/korean/` | 13.401.252 / 47.451 | `322f140154c820fcb83c3d24cfe42c9ec70dd1a1834163306a7338136e4f1eaa` / `a88071c68c01707489baa79ebe0405b7beb5cca229f4fc94cc3ef992328802d7` |
 | `rec-ch.onnx` + `rec-ch.dict.txt` | OCR Cina (PP-OCRv5 server rec) | [monkt/paddleocr-onnx](https://huggingface.co/monkt/paddleocr-onnx) `languages/chinese/` | 84.468.836 / 74.012 | `26fa4f47060f58e25962b9af6beaee05c8182b90e026c4ecc6db165d9dfdc38a` / `d1979e9f794c464c0d2e0b70a7fe14dd978e9dc644c0e71f14158cdf8342af1b` |
 | `cls-textline.onnx` | Klasifikasi arah garis 0°/180° (PP-LCNet, PP-OCRv5) | [bukuroo/PPOCRv5-ONNX](https://huggingface.co/bukuroo/PPOCRv5-ONNX) berkas `ppocrv5-cls.onnx` | 582.663 | `f4bb53707100c5f3d59ba834eb05bb400369f20aed35d4b26807b1bfadd2a70e` |
+| `inpaint-lama.onnx` | Inpaint penghapus teks bubble (LaMA manga, Tahap 3) | [mayocream/lama-manga-onnx](https://huggingface.co/mayocream/lama-manga-onnx) berkas `lama-manga.onnx` (LaMA di-fine-tune untuk manga — asal dreMaz/AnimeMangaInpainting, ekspor Carve-Photos/lama FourierUnitJIT; lisensi Apache-2.0; ekspor yang sama dipakai manga-image-translator) | 207.482.644 | `4512adab295ee5a5e02ccd1bdf8d45dccbac88309d9cff1532ffd5de876f02a4` |
 
 ## Catatan pemilihan
 
@@ -51,3 +52,17 @@ masuk git. Runtime: **Microsoft.ML.OnnxRuntime** (CPU).
   90° (tepi atas menjadi tepi kiri) lalu di-OCR sebagai teks
   horizontal; kedua arah putar dicoba dan dipilih yang keyakinannya
   lebih tinggi.
+- **LaMA inpaint**: masukan `image` float32 [B,3,512,512] nilai
+  0..1 (RGB) dan `mask` float32 [B,1,512,512] (**1 = area yang
+  di-inpaint**, 0 = dipertahankan); keluaran `output` float32
+  [B,3,512,512] nilai ±0..1. Ukuran masukan TETAP 512×512
+  (kalibrasi empiris: teks hitam pada bidang putih dengan mask
+  menutupi teks → area ter-mask terisi 0,9998 putih, luar mask
+  utuh). Aplikasi menjalankan model per potongan blok+margin,
+  mask dibangun dari piksel tinta gelap di dalam kotak blok
+  (dilasi 3 px), dan hasil ditempel kembali hanya di dalam mask
+  yang tepinya dilembutkan (expand 2 + blur 2) — piksel di luar
+  mask dijamin persis asli. Biaya CPU di VM ini ±10–25 detik per
+  blok; alternatif ekspor yang dipertimbangkan: Carve/LaMa-ONNX
+  `lama_fp32.onnx` (big-LaMA umum, 512×512 tetap, opset 17) —
+  varian manga dipilih karena targetnya halaman komik.

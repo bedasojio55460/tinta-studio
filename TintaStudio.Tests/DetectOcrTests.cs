@@ -183,7 +183,7 @@ public sealed class DetectOcrTests
         project.Save(path);
 
         var loaded = TintaProject.Load(path);
-        Assert.Equal(2, loaded.Version);
+        Assert.Equal(TintaProject.CurrentVersion, loaded.Version);
         var block = Assert.Single(loaded.Chapters[0].Pages[0].Blocks);
         Assert.Equal("ありがとう", block.Text);
         Assert.Equal(TextDirection.Vertical, block.Direction);

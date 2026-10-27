@@ -14,8 +14,9 @@ public sealed class TintaProject
     public const string FormatMarker = "tinta-studio-project";
 
     /// <summary>Versi skema format proyek saat ini.
-    /// v2 (Tahap 2): bab memuat halaman + blok teks deteksi/OCR.</summary>
-    public const int CurrentVersion = 2;
+    /// v2 (Tahap 2): bab memuat halaman + blok teks deteksi/OCR.
+    /// v3 (Tahap 3): halaman memuat operasi pembersihan + sapuan manual.</summary>
+    public const int CurrentVersion = 3;
 
     public string Format { get; set; } = FormatMarker;
     public int Version { get; set; } = CurrentVersion;
@@ -49,7 +50,15 @@ public sealed class TintaProject
                 $"Versi proyek ({project.Version}) lebih baru dari yang didukung aplikasi ini ({CurrentVersion}).");
         project.Chapters ??= new List<ProjectChapter>();
         foreach (var ch in project.Chapters)
+        {
             ch.Pages ??= new List<ProjectPage>();
+            foreach (var page in ch.Pages)
+            {
+                page.Blocks ??= new List<TextBlock>();
+                page.CleanOps ??= new List<CleanOperation>();
+                page.ManualStrokes ??= new List<BrushStroke>();
+            }
+        }
         return project;
     }
 }
@@ -80,7 +89,8 @@ public sealed class ProjectChapter
     }
 }
 
-/// <summary>Analisis satu halaman: blok teks hasil deteksi + OCR.</summary>
+/// <summary>Analisis satu halaman: blok teks hasil deteksi + OCR,
+/// plus riwayat pembersihan (Tahap 3).</summary>
 public sealed class ProjectPage
 {
     /// <summary>Indeks halaman (0-based, urutan impor).</summary>
@@ -88,6 +98,80 @@ public sealed class ProjectPage
 
     /// <summary>Blok teks pada halaman ini (sudah dalam urutan baca).</summary>
     public List<TextBlock> Blocks { get; set; } = new();
+
+    /// <summary>Operasi pembersihan per blok (Tahap 3). Berkas v1/v2
+    /// tidak memuat ini → daftar kosong; aman dimuat.</summary>
+    public List<CleanOperation> CleanOps { get; set; } = new();
+
+    /// <summary>Sapuan kuas/penghapus manual di atas hasil bersih
+    /// (Tahap 3), diterapkan sesudah operasi per blok, urut Seq.</summary>
+    public List<BrushStroke> ManualStrokes { get; set; } = new();
+
+    /// <summary>Penghitung urutan untuk operasi bersih &amp; sapuan
+    /// (dasar fitur Urungkan: yang Seq-nya terbesar dibatalkan dulu).</summary>
+    public int CleanSeq { get; set; }
+}
+
+/// <summary>Cara membersihkan teks sebuah blok.</summary>
+public enum CleanMode
+{
+    /// <summary>Isi area teks dengan warna solid.</summary>
+    Solid,
+
+    /// <summary>Inpaint LaMA: isi mengikuti latar di sekitarnya.</summary>
+    Inpaint,
+}
+
+/// <summary>
+/// Satu operasi pembersihan atas satu blok: mode + warna isi.
+/// Warna null = otomatis (sampel warna kertas di dalam bubble,
+/// bawaan putih). Operasi dapat dibangun ulang kapan pun dari
+/// halaman asli — berkas asli tidak pernah ditimpa.
+/// </summary>
+public sealed class CleanOperation
+{
+    /// <summary>Id blok (TextBlock.Id) yang dibersihkan.</summary>
+    public string BlockId { get; set; } = "";
+
+    public CleanMode Mode { get; set; } = CleanMode.Solid;
+
+    /// <summary>Warna isi mode Solid dalam format "#RRGGBB";
+    /// null = sampel otomatis dari dalam bubble.</summary>
+    public string? FillColor { get; set; }
+
+    /// <summary>Nomor urut penerapan (dasar Urungkan).</summary>
+    public int Seq { get; set; }
+
+    /// <summary>Waktu penerapan (UTC) — informasi saja.</summary>
+    public DateTime AppliedUtc { get; set; }
+}
+
+/// <summary>Satu titik sapuan manual, dalam piksel halaman asli.</summary>
+public sealed class StrokePoint
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+}
+
+/// <summary>
+/// Satu sapuan kuas/penghapus manual yang digambar pengguna di atas
+/// lapisan bersih. Erased=true berarti "kembalikan piksel asli"
+/// (penghapus), false = lukis warna solid.
+/// </summary>
+public sealed class BrushStroke
+{
+    public bool Erased { get; set; }
+
+    /// <summary>Warna kuas "#RRGGBB" (diabaikan bila Erased).</summary>
+    public string Color { get; set; } = "#FFFFFF";
+
+    /// <summary>Radius kuas dalam piksel halaman.</summary>
+    public int Radius { get; set; } = 12;
+
+    public List<StrokePoint> Points { get; set; } = new();
+
+    /// <summary>Nomor urut penerapan (dasar Urungkan).</summary>
+    public int Seq { get; set; }
 }
 
 /// <summary>Arah teks sebuah blok.</summary>

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Unduh model ONNX publik untuk Deteksi & OCR (Tahap 2) ke cache lokal.
+# Unduh model ONNX publik untuk Deteksi & OCR (Tahap 2) + Inpaint
+# LaMA (Tahap 3) ke cache lokal.
 # Idempotent: berkas yang hash-nya sudah cocok dilewati. Model TIDAK masuk
 # git — katalog + hash terdokumentasi di docs/models.md.
 set -euo pipefail
@@ -17,6 +18,7 @@ MODELS=(
   "rec-ch.onnx|https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages/chinese/rec.onnx|26fa4f47060f58e25962b9af6beaee05c8182b90e026c4ecc6db165d9dfdc38a"
   "rec-ch.dict.txt|https://huggingface.co/monkt/paddleocr-onnx/resolve/main/languages/chinese/dict.txt|d1979e9f794c464c0d2e0b70a7fe14dd978e9dc644c0e71f14158cdf8342af1b"
   "cls-textline.onnx|https://huggingface.co/bukuroo/PPOCRv5-ONNX/resolve/main/ppocrv5-cls.onnx|f4bb53707100c5f3d59ba834eb05bb400369f20aed35d4b26807b1bfadd2a70e"
+  "inpaint-lama.onnx|https://huggingface.co/mayocream/lama-manga-onnx/resolve/main/lama-manga.onnx|4512adab295ee5a5e02ccd1bdf8d45dccbac88309d9cff1532ffd5de876f02a4"
 )
 
 for entry in "${MODELS[@]}"; do

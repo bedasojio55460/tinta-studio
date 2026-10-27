@@ -18,4 +18,8 @@ Semua padanan di bawah ditulis ulang dari nol dengan komponen publik.
 | Outline bubble vektor (anchor, kurva, cusp/smooth) | Poligon bubble dapat disunting (versi sederhana dulu) | Kanvas sendiri | 5 |
 | Ekspor bab gambar | Ekspor CBZ / PDF / folder; format gambar pilihan (asli/JPG/WebP/PNG) | SkiaSharp, SharpCompress | 6 |
 | Lisensi langganan + trial | **Tidak ditiru** — aplikasi milik sendiri, tanpa sistem lisensi | — | — |
+
+Status: Tahap 1 ✅ (v0.1.0), Tahap 2 ✅ (v0.2.0), Tahap 3 ✅ (v0.3.0 —
+blok solid + eyedropper, inpaint LaMA manga ONNX, kuas/penghapus
+manual; semua non-destruktif, operasi tersimpan di proyek v3).
 | Maskot & branding Chisa | **Tidak disalin** — nama & logo original (Tinta Studio) | Logo programatis | 1 |

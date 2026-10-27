@@ -10,7 +10,7 @@ public sealed record ModelEntry(
     string Id, string DisplayName, string Role, IReadOnlyList<ModelFile> Files);
 
 /// <summary>
-/// Katalog model publik Tahap 2 + cache lokal di
+/// Katalog model publik Tahap 2–3 + cache lokal di
 /// ~/.cache/tinta-studio/models (override: env TINTA_MODEL_DIR).
 /// Unduhan tidak masuk git; hash diverifikasi setiap unduh.
 /// Daftar lengkap + alasan pemilihan: docs/models.md.
@@ -19,6 +19,7 @@ public static class ModelStore
 {
     public const string DetectorId = "detector";
     public const string ClsId = "cls";
+    public const string InpaintId = "inpaint";
 
     public static string CacheDir
     {
@@ -79,7 +80,20 @@ public static class ModelStore
                     "https://huggingface.co/bukuroo/PPOCRv5-ONNX/resolve/main/ppocrv5-cls.onnx",
                     "f4bb53707100c5f3d59ba834eb05bb400369f20aed35d4b26807b1bfadd2a70e", 582663),
             }),
+        new(InpaintId, "Inpaint LaMA", "LaMA manga (ONNX) — isi bubble mengikuti latar",
+            new[]
+            {
+                new ModelFile("inpaint-lama.onnx",
+                    "https://huggingface.co/mayocream/lama-manga-onnx/resolve/main/lama-manga.onnx",
+                    "4512adab295ee5a5e02ccd1bdf8d45dccbac88309d9cff1532ffd5de876f02a4", 207482644),
+            }),
     };
+
+    /// <summary>Model inpaint LaMA (Tahap 3).</summary>
+    public static ModelEntry InpaintEntry => Entry(InpaintId);
+
+    /// <summary>True bila model inpaint sudah siap di cache.</summary>
+    public static bool InpaintReady => IsDownloaded(InpaintEntry);
 
     public static ModelEntry Entry(string id) => Catalog.First(e => e.Id == id);
 

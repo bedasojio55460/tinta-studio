@@ -170,3 +170,77 @@
     halaman manga asli (screentone, teks kecil, efek suara) belum
     diukur — fixture masih sintetis bersih; (5) CBR & AVIF: batas
     Tahap 1 yang sama. Berikutnya: Tahap 3 — Pembersihan bubble.
+- 2026-10-26 ~17:21–18:0x PDT: **Tahap 3 (v0.3.0) SELESAI &
+  terverifikasi — Pembersihan Bubble.**
+  - **Model inpaint**: LaMA yang di-fine-tune untuk manga dari
+    [mayocream/lama-manga-onnx](https://huggingface.co/mayocream/lama-manga-onnx)
+    (`lama-manga.onnx`, asal dreMaz/AnimeMangaInpainting, ekspor
+    Carve-Photos/lama; Apache-2.0) — 207.482.644 byte, SHA-256
+    `4512adab…f02a4`, cache `inpaint-lama.onnx`. Kontrak
+    **dikalibrasi empiris**: `image` [B,3,512,512] 0..1 + `mask`
+    [B,1,512,512] (1 = di-inpaint) → `output` 0..1, ukuran tetap;
+    uji kalibrasi: teks hitam ter-mask terisi 0,9998 putih, luar
+    mask utuh. Alternatif Carve big-LaMA fp32 dicatat di
+    docs/models.md.
+  - **Cara kerja** (`Services/Inpaint.cs` + `Services/Clean.cs`):
+    inpaint per potongan blok+margin (24–160 px); mask = tinta
+    gelap di dalam kotak blok (menyusut 2 px dari tepi kotak,
+    dilasi 3 px); hasil ditempel hanya di dalam mask bertepi
+    lembut (expand 2 + blur 2) — piksel di luar mask persis asli
+    (teruji piksel-per-piksel). Solid = isi kotak blok, warna
+    sampel otomatis interior bubble (fixture: #FEFEFE) atau manual
+    (eyedropper/hex). Manual = kuas warna + penghapus (salin
+    kembali cakram piksel asli). **Non-destruktif**: gambar bersih
+    selalu dibangun ulang dari asli + daftar operasi; Urungkan
+    membuang operasi/sapuan ber-Seq terbesar. Cache: gambar dasar
+    operasi per (bab, halaman) bertanda tangan operasi di
+    ~/.config/tinta-studio/cleaned/; sapuan dikomposit di memori
+    di atasnya (sunting sapuan tidak memicu inpaint ulang).
+  - **Skema proyek v3**: ProjectPage.CleanOps (BlockId, Mode,
+    FillColor, Seq, AppliedUtc) + ManualStrokes (Erased, Color,
+    Radius, Points, Seq) + CleanSeq. Berkas v1/v2 tetap termuat
+    (uji khusus v2). Assertion versi tes Tahap 2 disesuaikan ke
+    CurrentVersion.
+  - **UI**: halaman Bersihkan aktif — toolbar atas pola Tahap 2
+    (ComboBox mode, Bersihkan Halaman Ini primer, Satu Bab, Batal
+    + kemajuan; judul tengah; kanan: toggle Asli, toggle Kotak,
+    chevron–"X/Y"–chevron), bar alat (Penetes/Kuas/Penghapus,
+    Slider ukuran, swatch + hex, Sampel otomatis, Urungkan),
+    info operasi; panel kanan: kartu MODEL INPAINT (Siap/Unduh)
+    + daftar blok (mode per blok + Terapkan, lencana ✓ di overlay
+    untuk blok bersih). Sapuan dicatat saat pointer dilepas
+    (bukan pratinjau langsung). Footer "v0.3.0 — Pembersihan
+    Bubble". CLI `--clean <bab> [--mode solid|inpaint]
+    [--out <folder>] [--lang]` — deteksi dulu bila proyek belum
+    punya blok; operasi dicatat ke proyek; `--info`/`--ocr` utuh.
+  - **Hasil fixture** (interior bubble JA horizontal, densitas
+    tinta luminansi<160): Solid 0,126 → **0,000**; Inpaint
+    0,126 → **0,000**; CLI --clean solid 0,126 → 0,000; diagnosis
+    jalur CleanStore pada bab demo: tinta blok 993/4466 → 0.
+    Keluaran CLI bab demo: bubble kosong bersih, teks caption
+    terhapus (sisa bayangan amat samar pada teks rata besar —
+    artefak LaMA yang jujur, lihat tmp/clean-demo-out/).
+  - **Tes: 31 lolos, 0 gagal, 0 skip** (runner konsol xUnit
+    dalam-proses; 13 Tahap 1 + 10 Tahap 2 tetap hijau + 8 baru:
+    solid, sampel warna, inpaint+luar-mask-utuh, urungkan,
+    kuas→penghapus pulih persis, proyek v3 round-trip bangun
+    ulang identik (hash PNG sama), muat v2, CLI --clean).
+    Build Release bersih; publish win-x64 single-file ulang:
+    **TintaStudio.exe 124.441.169 byte** (PE32+ GUI; model tetap
+    unduhan terpisah). Screenshot bukti: tmp/tinta-v03-ui.png
+    (halaman demo SESUDAH inpaint via UI + daftar blok & kartu
+    model). Catatan: bangun gambar inpaint dingin di VM ini
+    lambat (±47 dtk/2 blok saat CPU berbagi; cache membuatnya
+    instan sesudahnya); klik sintetis Xvfb tidak menembus toggle
+    "Asli", jadi screenshot sebelum/sesudah terpisah tidak
+    diambil — perbandingan ditopang angka densitas + keluaran CLI.
+  - Batas jujur: (1) kualitas inpaint pada manga asli berscreentone
+    BELUM diukur — fixture masih sintetis bersih; pada teks rata
+    besar di demo terlihat sisa bayangan samar; (2) biaya CPU
+    inpaint nyata (±10–25 dtk/blok di VM ini) — pembersihan satu
+    bab berjalan di latar + bisa dibatalkan; (3) sapuan manual
+    diterapkan saat pointer dilepas (tanpa pratinjau garis
+    langsung); (4) mask inpaint hanya dari tinta di dalam kotak
+    blok — teks yang meluber keluar kotak deteksi tidak ikut
+    terhapus; (5) CBR & AVIF: batas Tahap 1 yang sama.
+    Berikutnya: Tahap 4 — Terjemahan BYOK + lokal.

@@ -18,6 +18,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private string _statusText = "Siap. Buka berkas komik atau folder untuk mulai.";
     private bool _isLibraryActive = true;
     private bool _isDetectActive;
+    private bool _isCleanActive;
     private bool _isBusy;
     private Chapter? _currentChapter;
     private int _selectedPageIndex = -1;
@@ -69,7 +70,16 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    public bool IsViewerActive => !IsLibraryActive && !IsDetectActive;
+    public bool IsCleanActive
+    {
+        get => _isCleanActive;
+        private set
+        {
+            if (Set(ref _isCleanActive, value)) Raise(nameof(IsViewerActive));
+        }
+    }
+
+    public bool IsViewerActive => !IsLibraryActive && !IsDetectActive && !IsCleanActive;
 
     public LibraryEntry? SelectedLibraryEntry
     {
@@ -109,6 +119,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 Raise(nameof(CurrentPageWidth));
                 Raise(nameof(CurrentPageHeight));
                 LoadBlocksForCurrentPage();
+                RefreshCleanStateForCurrentPage();
                 PrevPageCommand.RaiseCanExecuteChanged();
                 NextPageCommand.RaiseCanExecuteChanged();
             }
@@ -140,6 +151,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             var text = $"{CurrentChapter.Format} • {CurrentChapter.Pages.Count} halaman";
             if (IsDetectActive)
                 text += $" • {Blocks.Count} blok di halaman ini";
+            if (IsCleanActive)
+            {
+                var page = CurrentProjectPage();
+                if (page is not null)
+                    text += $" • {page.CleanOps.Count} blok bersih di halaman ini";
+            }
             return text;
         }
     }
@@ -155,18 +172,21 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     public void ShowLibrary()
     {
         IsDetectActive = false;
+        IsCleanActive = false;
         IsLibraryActive = true;
     }
 
     public void ShowViewer()
     {
         IsDetectActive = false;
+        IsCleanActive = false;
         IsLibraryActive = false;
     }
 
     public void ShowDetect()
     {
         IsLibraryActive = false;
+        IsCleanActive = false;
         IsDetectActive = true;
         RefreshModelStatuses();
         LoadBlocksForCurrentPage();
@@ -272,6 +292,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             }
         }
         Raise(nameof(CurrentPageBitmap));
+        Raise(nameof(CleanCanvasBitmap));
         old?.Dispose();
     }
 

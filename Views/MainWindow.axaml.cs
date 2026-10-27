@@ -11,6 +11,7 @@ public partial class MainWindow : Window
         MenuLibrary.Click += (_, _) => ViewModel?.ShowLibrary();
         MenuViewer.Click += (_, _) => ViewModel?.ShowViewer();
         MenuDetect.Click += (_, _) => ViewModel?.ShowDetect();
+        MenuClean.Click += (_, _) => ViewModel?.ShowClean();
         Opened += OnOpened;
     }
 
@@ -25,18 +26,20 @@ public partial class MainWindow : Window
             {
                 if (args.PropertyName is nameof(MainWindowViewModel.IsLibraryActive)
                     or nameof(MainWindowViewModel.IsViewerActive)
-                    or nameof(MainWindowViewModel.IsDetectActive))
+                    or nameof(MainWindowViewModel.IsDetectActive)
+                    or nameof(MainWindowViewModel.IsCleanActive))
                     UpdateMenuStyles();
             };
 
             // Alat uji & screenshot: TINTA_OPEN=<jalur> membuka bab otomatis,
-            // TINTA_VIEW=library|viewer|detect memilih halaman awal.
+            // TINTA_VIEW=library|viewer|detect|clean memilih halaman awal.
             var autoOpen = Environment.GetEnvironmentVariable("TINTA_OPEN");
             if (!string.IsNullOrWhiteSpace(autoOpen))
                 await vm.OpenChapterPathAsync(autoOpen);
             switch (Environment.GetEnvironmentVariable("TINTA_VIEW"))
             {
                 case "detect": vm.ShowDetect(); break;
+                case "clean": vm.ShowClean(); break;
                 case "viewer": vm.ShowViewer(); break;
                 case "library": vm.ShowLibrary(); break;
             }
@@ -48,6 +51,7 @@ public partial class MainWindow : Window
         SetActive(MenuLibrary, ViewModel?.IsLibraryActive ?? true);
         SetActive(MenuViewer, ViewModel?.IsViewerActive ?? false);
         SetActive(MenuDetect, ViewModel?.IsDetectActive ?? false);
+        SetActive(MenuClean, ViewModel?.IsCleanActive ?? false);
     }
 
     private static void SetActive(Button button, bool active)
