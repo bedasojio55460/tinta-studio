@@ -500,6 +500,70 @@ public sealed class SmartTypesetTests
         rectBmp.Dispose();
     }
 
+    [Fact]
+    public void EstimateBubbleBox_CreamBackgroundThinBorder_NoLeak()
+    {
+        // Regresi v0.7.4 — halaman berwarna terang ala "page-c"
+        // (1020×1254): latar KREM pucat (250,240,225) LOLOS uji
+        // interior (min 225 > 200, rentang warna 25 < 28), jadi
+        // tanpa penghalang gelap pindai melompati garis tepi
+        // bubble yang tipis (2 px — hanya 1–2 sampel gelap,
+        // tertelan toleransi > 3) dan bocor di latar sampai tepi
+        // halaman: blok kiri asli terukur (0,0,234x614) dari
+        // interior sebenarnya ±(55,84)-(210,484). Kini piksel
+        // gelap menghentikan pindai seketika.
+        var cream = new SKColor(250, 240, 225);
+        var bmp = new SKBitmap(1020, 1254);
+        using (var canvas = new SKCanvas(bmp))
+        {
+            canvas.Clear(cream);
+            using var fill = new SKPaint
+            {
+                Color = SKColors.White, Style = SKPaintStyle.Fill, IsAntialias = false,
+            };
+            using var rim = new SKPaint
+            {
+                Color = SKColors.Black, Style = SKPaintStyle.Stroke,
+                StrokeWidth = 2, IsAntialias = false,
+            };
+            // Dua bubble bulat-persegi seukuran bubble asli.
+            canvas.DrawRoundRect(new SKRect(55, 84, 210, 484), 60, 60, fill);
+            canvas.DrawRoundRect(new SKRect(55, 84, 210, 484), 60, 60, rim);
+            canvas.DrawRoundRect(new SKRect(815, 50, 1020, 450), 60, 60, fill);
+            canvas.DrawRoundRect(new SKRect(815, 50, 1020, 450), 60, 60, rim);
+            canvas.Flush();
+        }
+        // Blok OCR pada posisi asli page-c.
+        var left = Block(60, 109, 137, 347, "Teks kiri.");
+        var right = Block(855, 75, 155, 326, "Teks kanan.");
+        foreach (var (block, interior) in new[]
+        {
+            (left, new SKRectI(55, 84, 210, 484)),
+            (right, new SKRectI(815, 50, 1020, 450)),
+        })
+        {
+            var box = TypesetService.EstimateBubbleBox(bmp, block);
+            _out.WriteLine($"blok ({block.X},{block.Y}): {box} (interior {interior})");
+            // Tidak menyentuh tepi halaman (bocor lama: top 0).
+            Assert.True(box.Top > 0 && box.Left > 0,
+                $"Kotak menyentuh tepi halaman: {box}");
+            // Dekat interior sebenarnya, tidak membengkak:
+            // tinggi < 1,5× tinggi interior, lebar ≤ lebar
+            // interior, dan tetap memuat sebagian besar
+            // interior (bukan fallback/susut ekstrem).
+            Assert.True(box.Height < interior.Height * 3 / 2,
+                $"Tinggi {box.Height} membengkak dari interior {interior.Height}.");
+            Assert.True(box.Width <= interior.Width,
+                $"Lebar {box.Width} melewati interior {interior.Width}.");
+            Assert.True(box.Width >= interior.Width * 3 / 4
+                        && box.Height >= interior.Height * 3 / 4,
+                $"Kotak menyusut jauh dari interior: {box} vs {interior}.");
+            Assert.InRange(box.MidX, interior.MidX - 14, interior.MidX + 14);
+            Assert.InRange(box.MidY, interior.MidY - 14, interior.MidY + 14);
+        }
+        bmp.Dispose();
+    }
+
     /// <summary>Regresi #2 (sumbu Y diiris): dua blok bertumpuk
     /// dalam satu bubble — sumbu non-iris (X) harus rentang ukur
     /// anggota sendiri, bukan lebar union.</summary>

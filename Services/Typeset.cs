@@ -248,11 +248,33 @@ public static class TypesetService
         Math.Max(px.Red, Math.Max(px.Green, px.Blue)) -
             Math.Min(px.Red, Math.Min(px.Green, px.Blue)) < 28;
 
+    /// <summary>Piksel GELAP = penghalang keras pindai (v0.7.4):
+    /// garis tepi bubble / garis gambar. Latar berwarna terang
+    /// (krem pucat ±250,240,225) lolos uji interior karena rentang
+    /// warnanya &lt; 28, dan garis tepi bubble yang tipis (±2–3 px)
+    /// bisa dilompati langkah 2 px + toleransi &gt; 3 sampel —
+    /// pindai lalu bocor ke latar sampai tepi halaman. Karena itu
+    /// sampel dengan saluran minimum &lt; 140 menghentikan pindai
+    /// SEKETIKA, sebelum hitungan toleransi: toleransi celah hanya
+    /// berlaku untuk piksel non-interior yang TIDAK gelap
+    /// (anti-alias terang / bercak). Ambang 140 jauh di bawah
+    /// interior (&gt; 200) dan di atas garis tepi yang digambar
+    /// penuh (hitam/abu tua), jadi anti-alias tepi bubble (abu
+    /// muda &gt; 140 di sisi dalam) tidak memicu berhenti dini.</summary>
+    internal const int DarkBarrierThreshold = 140;
+
+    private static bool IsDarkBarrier(SKColor px) =>
+        Math.Min(px.Red, Math.Min(px.Green, px.Blue)) < DarkBarrierThreshold;
+
     /// <summary>
     /// Ukur kotak interior bubble sebuah blok dari bitmap dasar:
     /// dari pusat kotak OCR, pindai 4 arah (langkah 2 px) sampai
     /// lebih dari 3 sampel berurutan bukan interior — titik interior
-    /// terakhir adalah tepi. Hasil di-inset max(6 px, ~4% dimensi)
+    /// terakhir adalah tepi. Piksel gelap (saluran minimum &lt; 140)
+    /// menghentikan pindai seketika di semua pindai (v0.7.4, lihat
+    /// IsDarkBarrier): tanpa itu latar terang di luar bubble yang
+    /// lolos uji interior membuat pindai melompati garis tepi tipis
+    /// dan bocor sampai tepi halaman. Hasil di-inset max(6 px, ~4% dimensi)
     /// per sisi, kecuali sisi yang menyentuh tepi halaman. Fallback:
     /// kotak OCR apa adanya bila lebar/tinggi hasil &lt; 60% kotak
     /// OCR (pindai gagal, mis. bubble berwarna/gelap).
@@ -296,7 +318,13 @@ public static class TypesetService
             int x = cx, y = cy, last = dx != 0 ? cx : cy, bad = 0, dist = 0;
             while (x >= 0 && x < w && y >= 0 && y < h && dist <= limit)
             {
-                if (IsBubbleInterior(baseBmp.GetPixel(x, y)))
+                var px = baseBmp.GetPixel(x, y);
+                // v0.7.4: piksel gelap menghentikan pindai
+                // seketika — garis tepi tipis tidak bisa lagi
+                // dilompati toleransi celah.
+                if (IsDarkBarrier(px))
+                    break;
+                if (IsBubbleInterior(px))
                 {
                     last = dx != 0 ? x : y;
                     bad = 0;
@@ -313,14 +341,17 @@ public static class TypesetService
         // Pindai horizontal pada baris y tertentu dari x pusat —
         // aturan sama persis seperti pindai pusat (langkah 2,
         // berhenti sesudah > 3 sampel non-interior, pagar 2×
-        // lebar kotak OCR per arah).
+        // lebar kotak OCR per arah, penghalang gelap v0.7.4).
         int ScanRow(int y, int dx)
         {
             int limit = ocr.Width * 2;
             int x = cx, last = cx, bad = 0, dist = 0;
             while (x >= 0 && x < w && dist <= limit)
             {
-                if (IsBubbleInterior(baseBmp.GetPixel(x, y)))
+                var px = baseBmp.GetPixel(x, y);
+                if (IsDarkBarrier(px))
+                    break;
+                if (IsBubbleInterior(px))
                 {
                     last = x;
                     bad = 0;

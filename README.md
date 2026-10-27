@@ -11,6 +11,36 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.7.4 — Penghalang Gelap pada Pindai Bubble
+
+Cacat yang ditemukan verifikasi independen pada sampel asli
+"page-c" (halaman berwarna terang): latar di luar bubble
+krem pucat (±250,240,225) LOLOS uji interior (saluran minimum
+225 > 200, rentang warna 25 < 28), dan garis tepi bubble yang
+utuh tapi tipis (±2–3 px) bisa dilompati pindai berlangkah
+2 px — hanya 1–2 sampel kena piksel gelap, tertelan toleransi
+> 3 sampel non-interior — sehingga pindai bocor di latar
+sampai tepi halaman (kotak blok kiri terukur 234×614 dari
+interior ±155×400, menempel y=0; perbaikan multi-baris
+v0.7.3 tidak menolong karena baris sampel ikut bocor).
+
+- **Semua pindai EstimateBubbleBox (4 arah dari pusat +
+  baris sampel ⅓/⅔) kini berhenti SEKETIKA pada piksel
+  gelap** (saluran minimum < 140). Toleransi celah yang ada
+  hanya berlaku lagi untuk piksel non-interior yang TIDAK
+  gelap (anti-alias terang / bercak). Ambang 140 dipilih
+  jauh di bawah lantai interior (> 200) dan di atas garis
+  tepi tergambar, dan terbukti cukup: replika sintetis
+  page-c (latar krem, tepi hitam 2 px, geometri blok asli)
+  menghasilkan kotak rapat di interior kedua bubble; tes
+  yang sama pada kode lama bocor ke (0,0,387×938).
+- **Tanpa regresi:** pagar lama tetap utuh — replika page-b
+  (reaksi/Sakamoto/toko), awan tepi halaman v0.7.3, elips
+  tinggi, persegi — semua lolos dalam pagar yang sama.
+  Tes: **91 total — 90 lolos, 0 gagal, 1 skip** (skip lama
+  sandbox yang sama); 1 tes regresi baru, gagal pada kode
+  lama (dibuktikan dengan stash).
+
 ## Status: v0.7.3 — Estimator Bubble Konservatif Multi-Baris
 
 Cacat yang ditemukan verifikasi independen pada sampel asli

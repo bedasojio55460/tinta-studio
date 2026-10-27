@@ -798,3 +798,36 @@
   bubble berlekuk kuat bisa tersisa belasan px di baris
   ekstrem di luar pita sampel ⅓–⅔; verifikasi ulang
   halaman asli page-c di tangan agen utama.
+- 2026-10-27: **v0.7.4 — penghalang gelap pada pindai
+  bubble** (temuan verifikasi agen utama pada page-c asli:
+  perbaikan v0.7.3 tidak menolong di halaman itu — blok
+  kiri terukur (0,0,234x614), blok kanan (822,0,...) bocor
+  ke y=0; teks blok kiri mepet tepi kiri bubble). Akar
+  masalah terdiagnosis agen utama & terverifikasi di kode:
+  latar krem pucat page-c (±250,240,225 → min 225 > 200,
+  rentang 25 < 28) LOLOS uji IsBubbleInterior, dan garis
+  tepi bubble tipis (±2–3 px) dilompati pindai langkah
+  2 px + toleransi > 3 sampel (hanya 1–2 sampel gelap).
+  Perbaikan: IsDarkBarrier (saluran minimum < 140,
+  konstanta DarkBarrierThreshold) diperiksa PERTAMA di
+  kedua fungsi pindai EstimateBubbleBox (Scan 4 arah +
+  ScanRow ⅓/⅔) — sampel gelap menghentikan pindai
+  seketika; toleransi celah hanya untuk non-interior
+  tidak gelap. Ambang 140 dibiarkan sesuai diagnosis
+  (pita kalibrasi 120–160 tidak perlu digeser): tes
+  regresi baru EstimateBubbleBox_CreamBackgroundThinBorder_NoLeak
+  (kanvas 1020×1254, latar krem, roundrect putih tepi
+  hitam 2 px tanpa anti-alias pada geometri blok asli
+  page-c (60,109,137x347) & (855,75,155x326)) lolos
+  rapat di interior kedua bubble, dan GAGAL pada kode
+  v0.7.3 dengan bocor (0,0,387x938) — dibuktikan dengan
+  stash. Seluruh pagar lama (page-b ±10%, awan tepi
+  halaman, elips tinggi, persegi, halaman putih) tetap
+  lolos. Tes final: **91 total — 90 lolos, 0 gagal,
+  1 skip** (XML tmp/xunit-results-v074.xml; baseline
+  v0.7.3: 90/89/0/1). Batas jujur: garis tepi bubble yang
+  digambar dengan warna abu di atas ambang (saluran
+  minimum ≥ 140, mis. tepi abu muda tanpa garis hitam)
+  tidak memicu penghalang — kasus seperti itu kembali ke
+  perilaku toleransi lama; verifikasi ulang page-c asli
+  di tangan agen utama.
