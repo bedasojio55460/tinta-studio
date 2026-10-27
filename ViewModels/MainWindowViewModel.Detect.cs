@@ -259,9 +259,13 @@ public sealed partial class MainWindowViewModel
             SaveProject();
             LoadBlocksForCurrentPage();
             DetectProgress = 1;
+            var langNote = SelectedLanguage.IsAuto
+                && Pipeline.DetectedLanguages.TryGetValue(0, out var guessedPage)
+                    ? $"Bahasa terdeteksi: {guessedPage.DisplayName}"
+                    : SelectedLanguage.DisplayName;
             StatusText = blocks.Count > 0
                 ? $"Halaman {index + 1}: {blocks.Count} blok teks terbaca " +
-                  $"({SelectedLanguage.DisplayName})."
+                  $"({langNote})."
                 : $"Halaman {index + 1}: tidak ada blok teks terdeteksi.";
         }
         catch (OperationCanceledException)
@@ -302,8 +306,16 @@ public sealed partial class MainWindowViewModel
             SaveProject();
             LoadBlocksForCurrentPage();
             int totalBlocks = _projectChapter.Pages.Sum(p => p.Blocks.Count);
+            var langNote = SelectedLanguage.DisplayName;
+            if (SelectedLanguage.IsAuto && Pipeline.DetectedLanguages.Count > 0)
+            {
+                var perPage = Enumerable.Range(0, CurrentChapter.Pages.Count)
+                    .Where(i => Pipeline.DetectedLanguages.ContainsKey(i))
+                    .Select(i => $"hal. {i + 1}: {Pipeline.DetectedLanguages[i].DisplayName}");
+                langNote = "Bahasa terdeteksi — " + string.Join(", ", perPage);
+            }
             StatusText = $"Deteksi bab selesai: {totalBlocks} blok dari " +
-                         $"{CurrentChapter.Pages.Count} halaman ({SelectedLanguage.DisplayName}).";
+                         $"{CurrentChapter.Pages.Count} halaman ({langNote}).";
         }
         catch (OperationCanceledException)
         {
@@ -327,12 +339,22 @@ public sealed partial class MainWindowViewModel
     private bool EnsureModelsReady()
     {
         var missing = ModelStore.MissingFor(SelectedLanguage);
-        if (missing.Count == 0)
-            return true;
-        StatusText = "Model belum lengkap: " +
-            string.Join(", ", missing.Select(m => m.DisplayName)) +
-            ". Unduh dulu lewat kartu Model di halaman ini.";
-        RefreshModelStatuses();
-        return false;
+        if (missing.Count > 0)
+        {
+            StatusText = "Model belum lengkap: " +
+                string.Join(", ", missing.Select(m => m.DisplayName)) +
+                ". Unduh dulu lewat kartu Model di halaman ini.";
+            RefreshModelStatuses();
+            return false;
+        }
+        if (SelectedLanguage.IsAuto && ModelStore.InstalledLanguages().Count == 0)
+        {
+            StatusText = "Mode Otomatis butuh minimal satu model OCR " +
+                "terunduh (Jepang/Korea/Cina/Inggris). Unduh dulu lewat " +
+                "kartu Model di halaman ini.";
+            RefreshModelStatuses();
+            return false;
+        }
+        return true;
     }
 }

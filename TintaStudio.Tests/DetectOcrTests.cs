@@ -115,6 +115,185 @@ public sealed class DetectOcrTests
             $"OCR Inggris \"{block.Text}\" terlalu jauh dari \"Hello world\" ({sim:F2}).");
     }
 
+    private static void RequireAutoCandidates()
+    {
+        Skip.If(ModelStore.MissingFor(OcrLanguage.Auto).Count > 0,
+            "Detektor belum diunduh.");
+        Skip.If(ModelStore.InstalledLanguages().Count < 2,
+            "Mode Otomatis butuh ≥2 model rec terpasang untuk tes ini.");
+    }
+
+    [SkippableFact]
+    public void Pipeline_Auto_JapanesePage_GuessesJapanese()
+    {
+        RequireAutoCandidates();
+        RequireModels(OcrLanguage.Japanese);
+        using var page = MangaFixture.JapanesePage();
+        using var pipeline = new DetectOcrPipeline();
+        var blocks = pipeline.AnalyzePage(page, OcrLanguage.Auto);
+        foreach (var b in blocks)
+            _out.WriteLine($"[{b.X},{b.Y}] {b.Language} ocr={b.Confidence:F2} \"{b.Text}\"");
+        Assert.True(pipeline.DetectedLanguages.TryGetValue(0, out var guessed),
+            "Bahasa terdeteksi halaman tidak tercatat.");
+        Assert.Equal("ja", guessed!.Code);
+        var horiz = BlockNear(blocks, MangaFixture.BubbleJaH);
+        Assert.NotNull(horiz);
+        Assert.Equal("ja", horiz!.Language);
+        Assert.True(MangaFixture.Similarity(horiz.Text, "こんにちは") >= 0.7,
+            $"Blok horizontal terbaca \"{horiz.Text}\".");
+        var vert = BlockNear(blocks, MangaFixture.BubbleJaV);
+        Assert.NotNull(vert);
+        Assert.Equal("ja", vert!.Language);
+    }
+
+    [SkippableFact]
+    public void Pipeline_Auto_EnglishPage_GuessesEnglish()
+    {
+        RequireAutoCandidates();
+        RequireModels(OcrLanguage.English);
+        using var page = MangaFixture.EnglishPage();
+        using var pipeline = new DetectOcrPipeline();
+        var blocks = pipeline.AnalyzePage(page, OcrLanguage.Auto);
+        foreach (var b in blocks)
+            _out.WriteLine($"[{b.X},{b.Y}] {b.Language} ocr={b.Confidence:F2} \"{b.Text}\"");
+        Assert.True(pipeline.DetectedLanguages.TryGetValue(0, out var guessed),
+            "Bahasa terdeteksi halaman tidak tercatat.");
+        Assert.Equal("en", guessed!.Code);
+        var block = BlockNear(blocks, MangaFixture.BubbleEn);
+        Assert.NotNull(block);
+        Assert.Equal("en", block!.Language);
+        Assert.True(MangaFixture.Similarity(block.Text, "Hello world") >= 0.7,
+            $"Blok Inggris terbaca \"{block.Text}\".");
+    }
+
+    [SkippableFact]
+    public void Pipeline_Auto_MixedPage_PerBlockLanguagesCorrect()
+    {
+        RequireAutoCandidates();
+        RequireModels(OcrLanguage.Japanese);
+        RequireModels(OcrLanguage.English);
+        using var page = MangaFixture.MixedPage();
+        using var pipeline = new DetectOcrPipeline();
+        var blocks = pipeline.AnalyzePage(page, OcrLanguage.Auto);
+        foreach (var b in blocks)
+            _out.WriteLine($"[{b.X},{b.Y}] {b.Language} ocr={b.Confidence:F2} \"{b.Text}\"");
+        var ja = BlockNear(blocks, MangaFixture.BubbleMixJa);
+        Assert.NotNull(ja);
+        Assert.Equal("ja", ja!.Language);
+        Assert.True(MangaFixture.Similarity(ja.Text, "こんにちは") >= 0.7,
+            $"Blok campur Jepang terbaca \"{ja.Text}\" ({ja.Language}).");
+        var en = BlockNear(blocks, MangaFixture.BubbleMixEn);
+        Assert.NotNull(en);
+        Assert.Equal("en", en!.Language);
+        Assert.True(MangaFixture.Similarity(en.Text, "Hello world") >= 0.7,
+            $"Blok campur Inggris terbaca \"{en.Text}\" ({en.Language}).");
+    }
+
+    [Fact]
+    public void LanguageGuess_ScriptBonus_RulesHold()
+    {
+        Assert.True(LanguageGuess.HasKana("こんにちは"));
+        Assert.True(LanguageGuess.HasHangul("안녕하세요"));
+        Assert.True(LanguageGuess.HasLatin("Hello world"));
+        Assert.Equal(LanguageGuess.ScriptBonus,
+            LanguageGuess.ScriptBonusFor(OcrLanguage.Japanese, "こんにちは"));
+        Assert.Equal(LanguageGuess.ScriptBonus,
+            LanguageGuess.ScriptBonusFor(OcrLanguage.Korean, "안녕하세요"));
+        Assert.Equal(LanguageGuess.ScriptBonus,
+            LanguageGuess.ScriptBonusFor(OcrLanguage.English, "Hello world"));
+        // Han murni netral untuk semua; Latin tanpa spasi tanpa bonus.
+        Assert.Equal(0, LanguageGuess.ScriptBonusFor(OcrLanguage.Chinese, "谢谢你"));
+        Assert.Equal(0, LanguageGuess.ScriptBonusFor(OcrLanguage.Japanese, "謝謝"));
+        Assert.Equal(0, LanguageGuess.ScriptBonusFor(OcrLanguage.English, "Hello"));
+        Assert.Equal("auto", OcrLanguage.Auto.Code);
+        Assert.Contains(OcrLanguage.Auto, OcrLanguage.All);
+        Assert.Equal(OcrLanguage.Auto, OcrLanguage.FromCode("auto"));
+        Assert.DoesNotContain(OcrLanguage.Auto, OcrLanguage.Concrete);
+    }
+
+    /// <summary>
+    /// Jalankan CLI aplikasi sebagai proses anak dengan folder model
+    /// panggung (TINTA_MODEL_DIR) — mengisolasi variabel lingkungan
+    /// dari proses tes. Mengembalikan (exit, stdout, stderr).
+    /// </summary>
+    private (int Exit, string StdOut, string StdErr) RunCliWithModelDir(
+        string modelDir, params string[] args)
+    {
+        var testBin = Path.GetDirectoryName(typeof(DetectOcrTests).Assembly.Location)!;
+        var config = new DirectoryInfo(testBin).Parent?.Name ?? "Debug";
+        var root = Path.GetFullPath(Path.Combine(testBin, "..", "..", "..", ".."));
+        var appDll = Path.Combine(root, "bin", config, "net10.0", "TintaStudio.dll");
+        Skip.If(!File.Exists(appDll), $"DLL aplikasi belum dibangun: {appDll}");
+        var psi = new ProcessStartInfo("dotnet",
+            string.Join(" ", new[] { $"\"{appDll}\"" }.Concat(args.Select(a => $"\"{a}\""))))
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        psi.Environment["TINTA_MODEL_DIR"] = modelDir;
+        psi.Environment["TINTA_CONFIG_DIR"] =
+            Path.Combine(Path.GetTempPath(), "tinta-cli-auto-" + Guid.NewGuid().ToString("N"));
+        using var proc = Process.Start(psi)!;
+        var stdout = proc.StandardOutput.ReadToEnd();
+        var stderr = proc.StandardError.ReadToEnd();
+        proc.WaitForExit(300_000);
+        return (proc.ExitCode, stdout, stderr);
+    }
+
+    private static void StageModelDir(string dir, params string[] entryIds)
+    {
+        Directory.CreateDirectory(dir);
+        foreach (var id in entryIds)
+            foreach (var f in ModelStore.Entry(id).Files)
+            {
+                var src = ModelStore.PathOf(f);
+                Skip.If(!File.Exists(src), $"Model cache tidak ada: {src}");
+                File.Copy(src, Path.Combine(dir, f.CacheName));
+            }
+    }
+
+    [SkippableFact]
+    public void Cli_Auto_SingleInstalledModel_UsesIt()
+    {
+        // Hanya detektor + rec-en terpasang di folder panggung:
+        // mode Otomatis harus memakai Inggris tanpa tebakan.
+        var dir = Path.Combine(Path.GetTempPath(),
+            "tinta-auto-one-" + Guid.NewGuid().ToString("N"));
+        var modelDir = Path.Combine(dir, "models");
+        StageModelDir(modelDir, ModelStore.DetectorId, "rec-en");
+        using var page = MangaFixture.EnglishPage();
+        var cbz = MangaFixture.MakeCbz(page, dir);
+        var (exit, stdout, stderr) = RunCliWithModelDir(
+            modelDir, "--ocr", cbz, "--lang", "auto");
+        _out.WriteLine(stdout);
+        _out.WriteLine(stderr);
+        Assert.Equal(0, exit);
+        Assert.Contains("Bahasa terdeteksi: Inggris", stdout);
+        Assert.Contains("Hello", stdout);
+        Directory.Delete(dir, recursive: true);
+    }
+
+    [SkippableFact]
+    public void Cli_Auto_NoModels_HonestError()
+    {
+        // Folder model kosong: galat jujur (exit 3) menyebut model
+        // OCR yang perlu diunduh, bukan tebakan buta.
+        var dir = Path.Combine(Path.GetTempPath(),
+            "tinta-auto-none-" + Guid.NewGuid().ToString("N"));
+        var modelDir = Path.Combine(dir, "models");
+        StageModelDir(modelDir, ModelStore.DetectorId);
+        using var page = MangaFixture.EnglishPage();
+        var cbz = MangaFixture.MakeCbz(page, dir);
+        var (exit, stdout, stderr) = RunCliWithModelDir(
+            modelDir, "--ocr", cbz, "--lang", "auto");
+        _out.WriteLine(stdout);
+        _out.WriteLine(stderr);
+        Assert.Equal(3, exit);
+        Assert.Contains("Model belum diunduh", stderr + stdout);
+        Assert.Contains("OCR", stderr + stdout);
+        Directory.Delete(dir, recursive: true);
+    }
+
     [Fact]
     public void ModelCatalog_IncludesEnglishOcr()
     {

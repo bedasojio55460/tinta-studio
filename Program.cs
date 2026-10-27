@@ -25,8 +25,9 @@ internal static class Program
             Environment.ExitCode = RunInfo(args[1]);
             return;
         }
-        // Mode CLI: --ocr <berkas/folder komik> [--lang ja|ko|ch|en] —
+        // Mode CLI: --ocr <berkas/folder komik> [--lang auto|ja|ko|ch|en] —
         // deteksi + OCR semua halaman, hasil disimpan ke proyek bab.
+        // auto: bahasa ditebak per halaman dari model yang terpasang.
         if (args.Length >= 2 && args[0] == "--ocr")
         {
             Environment.ExitCode = RunOcr(args);
@@ -83,7 +84,7 @@ internal static class Program
             Console.WriteLine("Pemakaian:");
             Console.WriteLine("  TintaStudio                              buka antarmuka grafis");
             Console.WriteLine("  TintaStudio --info <path>                tampilkan info bab komik (format, halaman)");
-            Console.WriteLine("  TintaStudio --ocr <path> [--lang ja|ko|ch|en]  deteksi + OCR, simpan ke proyek");
+            Console.WriteLine("  TintaStudio --ocr <path> [--lang auto|ja|ko|ch|en]  deteksi + OCR, simpan ke proyek (auto = tebak bahasa)");
             Console.WriteLine("  TintaStudio --clean <path> [--mode solid|inpaint] [--line-protect on|off] [--out <folder>] [--lang ja|ko|ch|en]");
             Console.WriteLine("                                           bersihkan bubble, tulis gambar bersih");
             Console.WriteLine("                                           (line-protect: on = jaga garis tepi (bawaan), off = hapus tuntas)");
@@ -181,7 +182,12 @@ internal static class Program
                 $"{chapter.Pages.Count} halaman");
             foreach (var page in projectChapter.Pages)
             {
-                Console.WriteLine($"Halaman {page.Index + 1}: {page.Blocks.Count} blok");
+                var detected = lang.IsAuto
+                    && pipeline.DetectedLanguages.TryGetValue(page.Index, out var g)
+                        ? $" — Bahasa terdeteksi: {g.DisplayName}"
+                        : "";
+                Console.WriteLine(
+                    $"Halaman {page.Index + 1}: {page.Blocks.Count} blok{detected}");
                 foreach (var b in page.Blocks)
                 {
                     var dir = b.Direction == Models.TextDirection.Vertical

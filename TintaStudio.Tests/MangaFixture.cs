@@ -27,6 +27,10 @@ public static class MangaFixture
     public static readonly SKRectI BubbleTwoLines = new(120, 300, 640, 560);
     /// <summary>Bubble E: Inggris horizontal "Hello world".</summary>
     public static readonly SKRectI BubbleEn = new(80, 560, 560, 760);
+    /// <summary>Bubble campur A: Jepang horizontal 「こんにちは」.</summary>
+    public static readonly SKRectI BubbleMixJa = new(80, 140, 560, 340);
+    /// <summary>Bubble campur B: Inggris horizontal "Hello world".</summary>
+    public static readonly SKRectI BubbleMixEn = new(80, 900, 620, 1120);
 
     public static SKTypeface TypefaceFor(string lang)
     {
@@ -165,6 +169,22 @@ public static class MangaFixture
         using var canvas = new SKCanvas(bmp);
         DrawBubble(canvas, BubbleEn);
         DrawCenteredText(canvas, "Hello world", "en", BubbleEn, 58);
+        canvas.Flush();
+        return bmp;
+    }
+
+    /// <summary>
+    /// Halaman campur: satu bubble Jepang + satu bubble Inggris,
+    /// untuk tes mode Otomatis (bahasa per blok harus benar dua-duanya).
+    /// </summary>
+    public static SKBitmap MixedPage()
+    {
+        var bmp = NewPage();
+        using var canvas = new SKCanvas(bmp);
+        DrawBubble(canvas, BubbleMixJa);
+        DrawCenteredText(canvas, "こんにちは", "ja", BubbleMixJa, 58);
+        DrawBubble(canvas, BubbleMixEn);
+        DrawCenteredText(canvas, "Hello world", "en", BubbleMixEn, 54);
         canvas.Flush();
         return bmp;
     }

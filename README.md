@@ -11,6 +11,46 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.7.9 — Mode OCR Otomatis
+
+Pemilih bahasa halaman Deteksi & OCR kini punya pilihan
+teratas **"Otomatis"** (CLI `--lang auto`): aplikasi menebak
+bahasa sendiri dari model yang terpasang — pengguna tidak
+perlu tahu bahasa sumber halaman lebih dulu. Bahasa manual
+(Jepang/Korea/Cina/Inggris) tidak berubah perilaku.
+
+- **Kandidat = model rec yang terpasang penuh** di folder
+  model. Tidak ada satu pun → galat jujur menyebut semua
+  model OCR yang perlu diunduh. Tepat satu → langsung dipakai
+  tanpa tebakan.
+- **Tebakan halaman**: sampai 5 blok terbesar dibaca tiap
+  kandidat; skor kandidat = rata-rata keyakinan tertimbang
+  panjang teks **+ bonus aksara 0,25** bila teks terdekode
+  konsisten (kana → ja, hangul → ko, Latin + spasi → en;
+  Han murni netral — keyakinan yang memutuskan ja vs ch).
+- **Perbaikan per blok**: blok yang keyakinannya < **0,5**
+  pada bahasa halaman, ATAU yang aksaranya sama sekali bukan
+  aksara bahasa halaman (kasus nyata: kamus ja memuat Latin,
+  teks Inggris terbaca "Helo world." berkeyakinan 0,98 tanpa
+  kana/Han), dicoba ulang dengan semua kandidat lain; skor
+  terbaik disimpan dan **bahasa aktual tercatat per blok** —
+  halaman campur ja+en terbukti benar per blok.
+- **Transparansi**: status sesudah jalan menyebut
+  "Bahasa terdeteksi: …" per halaman (UI dan ringkasan CLI),
+  dan daftar blok menampilkan bahasa aktual tiap blok.
+- **Tes: 110 total — 109 lolos, 0 gagal, 1 skip** (XML
+  `tmp/xunit-results-v079.xml`; baseline v0.7.8:
+  103/102/0/1; skip = loopback sandbox yang sama). 7 tes
+  baru: auto memilih ja, auto memilih en, halaman campur
+  per blok, aturan bonus aksara, CLI folder-model-tunggal,
+  CLI tanpa model (galat jujur, exit 3).
+- **Batas jujur**: mode ini lebih lambat dari mode manual —
+  tebakan halaman menjalankan rec kandidat × sampel
+  (maks 5 blok) per halaman, ditambah coba-ulang per blok
+  lemah; halaman Cina murni vs Jepang aksara-Han diputuskan
+  keyakinan model semata dan bisa meleset pada teks sangat
+  pendek.
+
 ## Status: v0.7.8 — Bahasa OCR Keempat: Inggris
 
 Bahasa sumber OCR kini **empat**: Jepang, Korea, Cina, dan —

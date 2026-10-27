@@ -123,8 +123,25 @@ public static class ModelStore
         Entry(DetectorId), Entry("rec-" + lang.Code),
     };
 
-    public static IReadOnlyList<ModelEntry> MissingFor(OcrLanguage lang) =>
-        RequiredFor(lang).Where(e => !IsDownloaded(e)).ToList();
+    public static IReadOnlyList<ModelEntry> MissingFor(OcrLanguage lang)
+    {
+        // Mode Otomatis tidak punya model sendiri; yang wajib hanya
+        // detektor. Kandidat bahasa ditentukan dari model rec yang
+        // terpasang (InstalledLanguages) dan ketiadaannya dilaporkan
+        // oleh pipa dengan pesan khusus.
+        if (lang.IsAuto)
+            return new[] { Entry(DetectorId) }.Where(e => !IsDownloaded(e)).ToList();
+        return RequiredFor(lang).Where(e => !IsDownloaded(e)).ToList();
+    }
+
+    /// <summary>
+    /// Bahasa yang model recognition-nya terpasang penuh di cache —
+    /// kandidat mode Otomatis, urutan katalog.
+    /// </summary>
+    public static IReadOnlyList<OcrLanguage> InstalledLanguages() =>
+        OcrLanguage.Concrete
+            .Where(l => IsDownloaded(Entry("rec-" + l.Code)))
+            .ToList();
 
     /// <summary>
     /// Unduh semua berkas model yang belum siap; kemajuan 0..1 dilaporkan

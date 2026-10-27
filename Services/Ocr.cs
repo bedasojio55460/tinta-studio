@@ -8,23 +8,112 @@ namespace TintaStudio.Services;
 /// <summary>Bahasa OCR yang didukung (pilihan pengguna).</summary>
 public sealed record OcrLanguage(string Code, string DisplayName)
 {
+    /// <summary>
+    /// Mode Otomatis: bahasa ditebak per halaman dari model yang
+    /// terpasang (lihat DetectOcrPipeline). Bukan bahasa sungguhan —
+    /// tidak pernah punya model sendiri dan tidak pernah tercatat
+    /// sebagai bahasa blok; blok selalu menyimpan bahasa aktual
+    /// yang memenangi tebakan.
+    /// </summary>
+    public static readonly OcrLanguage Auto = new("auto", "Otomatis");
+
     public static readonly OcrLanguage Japanese = new("ja", "Jepang");
     public static readonly OcrLanguage Korean = new("ko", "Korea");
     public static readonly OcrLanguage Chinese = new("ch", "Cina");
     public static readonly OcrLanguage English = new("en", "Inggris");
 
+    /// <summary>Pilihan di pemilih bahasa UI: Otomatis di teratas.</summary>
     public static IReadOnlyList<OcrLanguage> All { get; } =
+        new[] { Auto, Japanese, Korean, Chinese, English };
+
+    /// <summary>Bahasa sungguhan (punya model rec + kamus).</summary>
+    public static IReadOnlyList<OcrLanguage> Concrete { get; } =
         new[] { Japanese, Korean, Chinese, English };
+
+    public bool IsAuto => Code == Auto.Code;
 
     public static OcrLanguage FromCode(string code) => code switch
     {
+        "auto" => Auto,
         "ja" => Japanese,
         "ko" => Korean,
         "ch" => Chinese,
         "en" => English,
         _ => throw new ArgumentException(
-            $"Kode bahasa tidak dikenal: '{code}' (pakai ja|ko|ch|en).", nameof(code)),
+            $"Kode bahasa tidak dikenal: '{code}' (pakai auto|ja|ko|ch|en).", nameof(code)),
     };
+}
+
+/// <summary>
+/// Penilaian calon bahasa untuk mode Otomatis: skor = keyakinan OCR
+/// rata-rata tertimbang panjang teks, ditambah bonus konsistensi
+/// aksara dari teks terdekode. Aksara khas menjadi penentu kuat:
+/// kana hanya muncul dari teks Jepang, hangul hanya dari Korea,
+/// huruf Latin + spasi menandakan Inggris; Han murni netral
+/// (Jepang dan Cina berbagi Han — keyakinan yang memutuskan).
+/// </summary>
+public static class LanguageGuess
+{
+    /// <summary>Ambang keyakinan blok untuk memicu coba-ulang per blok.</summary>
+    public const double BlockRetryThreshold = 0.5;
+
+    /// <summary>Bonus skor per aksara khas yang konsisten.</summary>
+    public const double ScriptBonus = 0.25;
+
+    /// <summary>True bila teks mengandung hiragana/katakana.</summary>
+    public static bool HasKana(string text) => text.Any(c =>
+        (c >= '\u3040' && c <= '\u30FF') || (c >= '\u31F0' && c <= '\u31FF'));
+
+    /// <summary>True bila teks mengandung suku kata hangul.</summary>
+    public static bool HasHangul(string text) => text.Any(c =>
+        (c >= '\uAC00' && c <= '\uD7AF') || (c >= '\u1100' && c <= '\u11FF'));
+
+    /// <summary>True bila teks mengandung huruf Latin.</summary>
+    public static bool HasLatin(string text) => text.Any(c =>
+        (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+        || (c >= '\u00C0' && c <= '\u024F'));
+
+    /// <summary>
+    /// Bonus konsistensi aksara untuk pasangan (bahasa, teks hasil
+    /// baca bahasa itu). Kana/hangul yang muncul dari model yang
+    /// salah hampir mustahil, jadi kehadirannya menguatkan bahasa
+    /// pemilik aksara itu; teks Han murni tidak memberi bonus.
+    /// </summary>
+    public static double ScriptBonusFor(OcrLanguage lang, string text) => lang.Code switch
+    {
+        "ja" => HasKana(text) ? ScriptBonus : 0,
+        "ko" => HasHangul(text) ? ScriptBonus : 0,
+        "en" => HasLatin(text) && text.Contains(' ') ? ScriptBonus : 0,
+        _ => 0,
+    };
+
+    /// <summary>Skor satu hasil baca: keyakinan + bonus aksara bahasanya.</summary>
+    public static double ScoreOf(OcrLanguage lang, OcrResult result) =>
+        result.Confidence + ScriptBonusFor(lang, result.Text);
+
+    /// <summary>
+    /// True bila teks hasil baca sama sekali tidak memakai aksara
+    /// bahasa yang membacanya — penanda blok ini mungkin berbahasa
+    /// lain walau keyakinannya tinggi. Kasus nyata: kamus Jepang
+    /// memuat huruf Latin, jadi teks Inggris terbaca "Helo world."
+    /// berkeyakinan 0,98 oleh model ja tanpa satu pun kana/Han.
+    /// Cina tidak punya uji ini: Han adalah aksaranya dan teks
+    /// pendek Cina yang sah selalu lulus uji Han ja juga.
+    /// </summary>
+    public static bool ScriptMismatch(OcrLanguage lang, string text)
+    {
+        var flat = text.Replace("\n", "").Replace(" ", "");
+        if (flat.Length == 0)
+            return false;
+        return lang.Code switch
+        {
+            "ja" => !flat.Any(c => (c >= '\u3040' && c <= '\u30FF')
+                                   || (c >= '\u4E00' && c <= '\u9FFF')),
+            "ko" => !HasHangul(flat),
+            "en" => !HasLatin(flat),
+            _ => false,
+        };
+    }
 }
 
 /// <summary>Hasil OCR satu blok: teks, keyakinan 0..1, arah terpilih.</summary>

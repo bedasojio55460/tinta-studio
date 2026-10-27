@@ -20,8 +20,28 @@ public sealed class DetectOcrPipeline : IDisposable
     private readonly OcrService _ocr = new();
 
     /// <summary>
+    /// Bahasa yang terdeteksi per halaman pada jalan mode Otomatis
+    /// terakhir (AnalyzeChapterAsync / AnalyzePage dipanggil dari
+    /// luar dengan lang Otomatis). Indeks = indeks halaman;
+    /// diisi ulang setiap bab dianalisis. Konsumen (UI/CLI)
+    /// membacanya untuk transparansi "Bahasa terdeteksi: …".
+    /// </summary>
+    public IReadOnlyDictionary<int, OcrLanguage> DetectedLanguages
+    {
+        get => _detectedLanguages;
+    }
+
+    private readonly Dictionary<int, OcrLanguage> _detectedLanguages = new();
+
+    /// <summary>Jumlah blok sampel terbesar untuk tebakan bahasa halaman.</summary>
+    internal const int PageGuessSampleSize = 5;
+
+    /// <summary>
     /// Jalankan deteksi + OCR pada bitmap satu halaman. Mengembalikan
     /// blok teks (kelas text_bubble/text_free saja) dalam urutan baca.
+    /// lang Otomatis: bahasa halaman ditebak dari model terpasang
+    /// (lihat GuessPageLanguage), lalu blok berkeyakinan rendah
+    /// diperbaiki per blok dengan kandidat lain.
     /// </summary>
     public IReadOnlyList<TextBlock> AnalyzePage(
         SKBitmap page, OcrLanguage lang, CancellationToken ct = default)
@@ -34,6 +54,130 @@ public sealed class DetectOcrPipeline : IDisposable
             .Where(b => b.Class is DetectedClass.TextBubble or DetectedClass.TextFree)
             .ToList());
 
+        if (lang.IsAuto)
+            return AnalyzePageAuto(page, boxes, ct);
+
+        var blocks = RecognizeBoxes(page, boxes, lang, ct);
+        return SortReadingOrder(blocks, lang);
+    }
+
+    /// <summary>
+    /// Kandidat mode Otomatis: bahasa yang model rec-nya terpasang.
+    /// Bila kosong → galat jujur menyebut unduhan yang dibutuhkan.
+    /// </summary>
+    internal static IReadOnlyList<OcrLanguage> AutoCandidates()
+    {
+        var installed = ModelStore.InstalledLanguages();
+        if (installed.Count == 0)
+            throw new ModelMissingException(
+                ModelStore.Catalog
+                    .Where(e => e.Id.StartsWith("rec-", StringComparison.Ordinal))
+                    .ToList());
+        return installed;
+    }
+
+    /// <summary>
+    /// Jalan mode Otomatis satu halaman: tebak bahasa halaman dari
+    /// sampel blok terbesar, OCR semua blok dengan bahasa itu, lalu
+    /// perbaiki blok berkeyakinan &lt; ambang dengan kandidat lain
+    /// (skor terbaik yang disimpan, bahasa aktual tercatat per blok).
+    /// </summary>
+    private IReadOnlyList<TextBlock> AnalyzePageAuto(
+        SKBitmap page, List<DetectedBox> boxes, CancellationToken ct)
+    {
+        var candidates = AutoCandidates();
+        var pageLang = candidates.Count == 1
+            ? candidates[0]
+            : GuessPageLanguage(page, boxes, candidates, ct);
+        _detectedLanguages[0] = pageLang;
+
+        var blocks = new List<TextBlock>();
+        foreach (var box in boxes)
+        {
+            ct.ThrowIfCancellationRequested();
+            var result = _ocr.RecognizeBlock(page, box, pageLang);
+            var used = pageLang;
+            if (candidates.Count > 1
+                && (result.Confidence < LanguageGuess.BlockRetryThreshold
+                    || LanguageGuess.ScriptMismatch(pageLang, result.Text)))
+            {
+                // Coba-ulang per blok: hasil bahasa halaman lemah,
+                // ATAU aksaranya sama sekali bukan aksara bahasa
+                // halaman — mungkin blok ini berbahasa lain
+                // (halaman campur).
+                foreach (var alt in candidates)
+                {
+                    if (alt.Code == pageLang.Code)
+                        continue;
+                    ct.ThrowIfCancellationRequested();
+                    var altResult = _ocr.RecognizeBlock(page, box, alt);
+                    if (LanguageGuess.ScoreOf(alt, altResult)
+                        > LanguageGuess.ScoreOf(used, result))
+                    {
+                        result = altResult;
+                        used = alt;
+                    }
+                }
+            }
+            // Blok yang OCR-nya kosong tidak disimpan (sama seperti
+            // mode manual: umumnya artefak lengkung bubble).
+            if (string.IsNullOrWhiteSpace(result.Text))
+                continue;
+            blocks.Add(ToBlock(box, result, used));
+        }
+        return SortReadingOrder(blocks, pageLang);
+    }
+
+    /// <summary>
+    /// Tebak bahasa halaman: sampel sampai
+    /// <see cref="PageGuessSampleSize"/> blok terbesar (luas) dibaca
+    /// tiap kandidat; skor kandidat = rata-rata ScoreOf tertimbang
+    /// panjang teks keluaran. Biaya: kandidat × sampel kali rec.
+    /// </summary>
+    internal OcrLanguage GuessPageLanguage(
+        SKBitmap page, IReadOnlyList<DetectedBox> boxes,
+        IReadOnlyList<OcrLanguage> candidates, CancellationToken ct = default)
+    {
+        var sample = boxes
+            .OrderByDescending(b => (long)b.Width * b.Height)
+            .Take(PageGuessSampleSize)
+            .ToList();
+        if (sample.Count == 0)
+            return candidates[0];
+
+        OcrLanguage? best = null;
+        double bestScore = double.NegativeInfinity;
+        foreach (var cand in candidates)
+        {
+            double sum = 0;
+            long weight = 0;
+            foreach (var box in sample)
+            {
+                ct.ThrowIfCancellationRequested();
+                var r = _ocr.RecognizeBlock(page, box, cand);
+                if (string.IsNullOrWhiteSpace(r.Text))
+                    continue;
+                int w = Math.Max(1, r.Text.Replace("\n", "").Length);
+                sum += LanguageGuess.ScoreOf(cand, r) * w;
+                weight += w;
+            }
+            double score = weight > 0 ? sum / weight : double.NegativeInfinity;
+            if (score > bestScore)
+            {
+                bestScore = score;
+                best = cand;
+            }
+        }
+        // Semua kandidat membaca kosong pada sampel (halaman tanpa
+        // teks terbaca): jatuhkan ke kandidat pertama agar blok
+        // kosong terbuang seperti mode manual.
+        return best ?? candidates[0];
+    }
+
+    private List<TextBlock> RecognizeBoxes(
+        SKBitmap page, IReadOnlyList<DetectedBox> boxes, OcrLanguage lang,
+        CancellationToken ct)
+    {
         var blocks = new List<TextBlock>();
         foreach (var box in boxes)
         {
@@ -45,21 +189,24 @@ public sealed class DetectOcrPipeline : IDisposable
             // blok kosong tidak berguna bagi tahap berikutnya).
             if (string.IsNullOrWhiteSpace(result.Text))
                 continue;
-            blocks.Add(new TextBlock
-            {
-                X = box.X,
-                Y = box.Y,
-                Width = box.Width,
-                Height = box.Height,
-                Direction = result.Direction,
-                Language = lang.Code,
-                Text = result.Text,
-                Confidence = result.Confidence,
-                DetectionScore = box.Score,
-            });
+            blocks.Add(ToBlock(box, result, lang));
         }
-        return SortReadingOrder(blocks, lang);
+        return blocks;
     }
+
+    private static TextBlock ToBlock(
+        DetectedBox box, OcrResult result, OcrLanguage used) => new()
+        {
+            X = box.X,
+            Y = box.Y,
+            Width = box.Width,
+            Height = box.Height,
+            Direction = result.Direction,
+            Language = used.Code,
+            Text = result.Text,
+            Confidence = result.Confidence,
+            DetectionScore = box.Score,
+        };
 
     /// <summary>
     /// Buang kotak duplikat LINTAS kelas teks: wilayah yang sama
@@ -97,18 +244,25 @@ public sealed class DetectOcrPipeline : IDisposable
         var missing = ModelStore.MissingFor(lang);
         if (missing.Count > 0)
             throw new ModelMissingException(missing);
+        if (lang.IsAuto)
+            AutoCandidates(); // gagal cepat & jujur sebelum halaman pertama
 
+        _detectedLanguages.Clear();
         int total = chapter.Pages.Count;
         for (int i = 0; i < total; i++)
         {
             ct.ThrowIfCancellationRequested();
             var pageInfo = chapter.Pages[i];
+            int pageIndex = i;
             var blocks = await Task.Run(() =>
             {
                 using var bmp = SKBitmap.Decode(pageInfo.WorkPath)
                     ?? throw new InvalidDataException(
                         $"Halaman kerja tidak terbaca: {pageInfo.SourceName}");
-                return AnalyzePage(bmp, lang, ct);
+                var result = AnalyzePage(bmp, lang, ct);
+                if (lang.IsAuto && _detectedLanguages.TryGetValue(0, out var guessed))
+                    _detectedLanguages[pageIndex] = guessed;
+                return result;
             }, ct);
             var stored = projectChapter.PageAt(i);
             stored.Blocks.Clear();

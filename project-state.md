@@ -986,3 +986,31 @@
   tidak disentuh). Batas jujur: teks miring ekstrem /
   tulisan tangan / huruf hias tidak dijamin. Commit
   lokal, tidak di-push.
+- 2026-10-27: **v0.7.9 — Mode OCR Otomatis (permintaan
+  Ando).** `OcrLanguage.Auto` kode "auto" label "Otomatis"
+  di posisi teratas `All`; `Concrete` = 4 bahasa sungguhan;
+  `FromCode("auto")` + CLI `--lang auto`. Mesin di pipa
+  yang ada (bukan jalur paralel): kandidat =
+  `ModelStore.InstalledLanguages()`; kosong → galat
+  ModelMissingException menyebut semua model rec; satu →
+  langsung dipakai. Tebakan halaman (`GuessPageLanguage`):
+  sampel ≤5 blok terbesar × tiap kandidat, skor =
+  keyakinan tertimbang panjang teks + bonus aksara 0,25
+  (`LanguageGuess`: kana→ja, hangul→ko, Latin+spasi→en,
+  Han netral). Perbaikan per blok: keyakinan < 0,5 ATAU
+  aksara tidak cocok bahasa halaman (`ScriptMismatch` —
+  temuan tes: model ja membaca "Hello world" sebagai
+  "Helo world." conf 0,98 karena kamusnya memuat Latin)
+  → coba-ulang semua kandidat, skor terbaik menang,
+  bahasa aktual tercatat per blok; halaman campur ja+en
+  terbukti benar dua-duanya. Transparansi:
+  `Pipeline.DetectedLanguages` per indeks halaman; status
+  UI "Bahasa terdeteksi: …" per halaman; ringkasan CLI
+  --ocr mencetak baris yang sama. Tes: **110 total —
+  109 lolos, 0 gagal, 1 skip** (XML
+  tmp/xunit-results-v079.xml; baseline v0.7.8:
+  103/102/0/1). +7 tes (3 pipeline auto + aturan bonus +
+  2 CLI folder-model panggung). Batas jujur: biaya waktu
+  = rec kandidat×sampel per halaman + coba-ulang blok
+  lemah; Han murni ja-vs-ch diputuskan keyakinan saja.
+  Commit lokal, tidak di-push.
