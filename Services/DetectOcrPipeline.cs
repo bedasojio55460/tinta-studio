@@ -30,9 +30,9 @@ public sealed class DetectOcrPipeline : IDisposable
         if (missing.Count > 0)
             throw new ModelMissingException(missing);
 
-        var boxes = _detector.Detect(page)
+        var boxes = DedupeBoxes(_detector.Detect(page)
             .Where(b => b.Class is DetectedClass.TextBubble or DetectedClass.TextFree)
-            .ToList();
+            .ToList());
 
         var blocks = new List<TextBlock>();
         foreach (var box in boxes)
@@ -59,6 +59,29 @@ public sealed class DetectOcrPipeline : IDisposable
             });
         }
         return SortReadingOrder(blocks, lang);
+    }
+
+    /// <summary>
+    /// Buang kotak duplikat LINTAS kelas teks: wilayah yang sama
+    /// bisa dilaporkan detektor dua kali — sekali sebagai
+    /// text_bubble dan sekali sebagai text_free — dengan kotak
+    /// nyaris identik (NMS di detektor hanya menekan duplikat
+    /// sekelas). Ditemukan pada uji halaman ilustrasi asli
+    /// 2026-10-27: dua pasang kotak identik persis lolos jadi blok
+    /// ganda. Yang dipertahankan: skor deteksi tertinggi. Ambang
+    /// IoU 0,85: dua kotak teks berbeda yang sah tidak pernah
+    /// bertumpang sejauh itu.
+    /// </summary>
+    internal static List<DetectedBox> DedupeBoxes(List<DetectedBox> boxes)
+    {
+        var kept = new List<DetectedBox>();
+        foreach (var b in boxes.OrderByDescending(b => b.Score))
+        {
+            if (kept.Any(k => TextDetector.Iou(k, b) > 0.85))
+                continue;
+            kept.Add(b);
+        }
+        return kept;
     }
 
     /// <summary>

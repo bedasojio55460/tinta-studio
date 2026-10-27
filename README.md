@@ -11,7 +11,25 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## Status: v0.6.0 — Tahap 6 (Ekspor + Packaging) — RENCANA 6 TAHAP TUNTAS
+## Status: v0.6.1 — Tahap 6 (Ekspor + Packaging) — RENCANA 6 TAHAP TUNTAS
+
+- **v0.6.1 — uji berkas ASLI dari internet + peredam duplikat.**
+  Atas usul Ando, pengujian tidak lagi hanya fixture sintetis:
+  (1) **CBR asli terverifikasi** — komik public domain *Four
+  Color #856 — Buffalo Bill Jr.* (Internet Archive, RAR asli
+  24,8 MB) terbaca penuh: **36 halaman**, 1 berkas .SFV di
+  dalamnya terlewati beralasan; deteksi di 36 halaman cetak asli
+  menemukan **329 blok** (±9/halaman). Kesenjangan lama "CBR
+  belum teruji" TUTUP. (2) **OCR di halaman manga Jepang asli**
+  (contoh resmi proyek manga-image-translator, 1487×2048):
+  13 bubble dialog → 14 blok, sebagian besar terbaca baik
+  sampai nyaris persis (mis. 「髪型変えたらすぐに気付いて
+  くれてつ」); yang lemah: bubble sangat kecil & teks dekoratif
+  (halaman judul bergaya) — batas jujur model OCR cetak.
+  (3) Temuan dari uji itu: detektor bisa melaporkan wilayah
+  sama dua kali lintas kelas (text_bubble + text_free) —
+  kini diredam `DedupeBoxes` (IoU > 0,85, skor tertinggi
+  dipertahankan) + tes regresi.
 
 - **Ekspor bab menjadi halaman FINAL** (gambar bersih + teks
   ter-typeset, jalur render yang sama dengan `--render`) ke

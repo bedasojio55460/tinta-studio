@@ -251,4 +251,25 @@ public sealed class DetectOcrTests
         Assert.NotEmpty(Directory.GetFiles(projectsDir, "*.tinta.json"));
         Directory.Delete(dir, recursive: true);
     }
+
+    [Fact]
+    public void DedupeBoxes_CrossClassDuplicates_KeepsHighestScore()
+    {
+        // Wilayah sama dilaporkan dua kelas teks (temuan uji
+        // halaman asli 2026-10-27): hanya satu yang bertahan —
+        // yang skornya tertinggi. Kotak berbeda yang sah dan
+        // kotak yang hanya bertumpang sebagian tidak dibuang.
+        var boxes = new List<DetectedBox>
+        {
+            new(100, 100, 200, 300, DetectedClass.TextBubble, 0.66),
+            new(100, 100, 200, 300, DetectedClass.TextFree, 0.39),
+            new(500, 100, 180, 260, DetectedClass.TextFree, 0.80),
+            new(520, 120, 180, 260, DetectedClass.TextBubble, 0.70),
+        };
+        var kept = DetectOcrPipeline.DedupeBoxes(boxes);
+        Assert.Equal(3, kept.Count);
+        var first = Assert.Single(kept, b => b.X == 100 && b.Y == 100);
+        Assert.Equal(0.66, first.Score);
+        Assert.Equal(DetectedClass.TextBubble, first.Class);
+    }
 }

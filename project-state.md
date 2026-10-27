@@ -597,3 +597,48 @@
     menempel + terjemahan penyedia asli), satu berkas .cbr
     asli untuk verifikasi baca RAR, dan editor poligon bubble
     vektor (ditunda sejak Tahap 5).
+- 2026-10-27 ~02:14–02:27 PDT: **Uji berkas ASLI dari internet
+  (usul Ando) + v0.6.1.** Tiga temuan, semuanya di luar suite
+  (berkas uji di tmp/samples/ & /tmp, tidak dikomit):
+  - **CBR ASLI TERBUKTI.** *Four Color #856 — Buffalo Bill Jr.*
+    dari Internet Archive (identifier BuffaloBillJr.Comic0856,
+    lisensi public domain; RAR v2.0 asli 24.791.307 byte):
+    `--info` → Format "RAR (CBR)", **36 halaman** terbaca semua
+    (folder bersarang di dalam arsip diratakan benar), 1
+    terlewati = berkas .SFV (bukan gambar, alasan eksplisit) —
+    persis perilaku rancangan. `--ocr --lang ja` atas 36 halaman
+    cetak asli (3m28s): **329 blok, ±9,1/halaman** (halaman
+    cerita 5–16 blok; sampul 1 blok) — detektor sehat di cetakan
+    halftone asli. (OCR ja atas teks Inggris tidak dinilai —
+    memang bukan bahasanya.) **Kesenjangan "CBR belum teruji
+    fixture" sejak Tahap 1 DINYATAKAN TUTUP** — tidak perlu
+    lagi menunggu kiriman .cbr dari Ando.
+  - **OCR manga Jepang ASLI terukur.** Dua halaman contoh resmi
+    repo manga-image-translator (user-images GitHub): halaman
+    dialog penuh warna 1487×2048 (13 bubble vertikal) → **14
+    blok** (13 bubble + 1 artefak SFX): ±8 terbaca baik/nyaris
+    persis (「髪型変えたら / すぐに気付いて / くれてつ」
+    ocr 0,84; 「店の店員さんとかにも / 赦語使3てて偉いな- /
+    とか」 0,83 — 敬→赦 satu-satunya salah kanji; 「ねえねえ /
+    めいは本のこと / どう思うへ」 0,85), 3 terbaca sebagian
+    (bubble 坂本くん hanya 「本」), 2 bubble kecil gagal baca
+    (「え？」→"A."), SFX tulisan tangan tidak terbaca (di luar
+    janji model cetak). Halaman judul/ilustrasi 2297×3123:
+    teks dekoratif & blurb sampul terbaca kasar — batas jujur
+    yang sama. Potongan bubble mungil contoh manga-ocr
+    (99–335 px, teks di atas gambar + furigana) memang buruk
+    (0–2 blok, baca karut) — BUKAN representasi halaman asli
+    (skala thumbnail), dicatat agar tidak disalahartikan.
+  - **BUG ditemukan & DIPERBAIKI dalam sesi yang sama
+    (v0.6.1)**: di halaman judul, dua pasang kotak IDENTIK
+    lolos jadi blok ganda — detektor melaporkan wilayah sama
+    sebagai text_bubble DAN text_free, sedangkan NMS bawaan
+    hanya menekan duplikat sekelas. Perbaikan:
+    `DetectOcrPipeline.DedupeBoxes` sesudah saringan kelas
+    (IoU > 0,85 → buang, skor tertinggi dipertahankan) + tes
+    regresi `DedupeBoxes_CrossClassDuplicates`. Verifikasi
+    ulang langsung: halaman judul 21 blok TANPA pasangan
+    identik, halaman dialog tetap 14 blok dengan teks sama.
+  - Tes: **74 total — 73 lolos, 0 gagal, 1 skip** (skip lama;
+    tmp/xunit-results-v061.xml). Publish ulang: exe
+    **124.674.641 byte** PE32+ GUI, footer v0.6.1.
