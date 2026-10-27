@@ -1,0 +1,106 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:TintaStudio.ViewModels"
+             x:Class="TintaStudio.Views.ExportView"
+             x:DataType="vm:MainWindowViewModel">
+    <DockPanel>
+        <!-- Toolbar atas: label halaman kiri, judul bab tengah,
+             navigasi chevron – X/Y – chevron kanan (pola halaman lain) -->
+        <Border DockPanel.Dock="Top" Background="#101216"
+                BorderBrush="#26292F" BorderThickness="0,0,0,1" Padding="10,7">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <TextBlock Text="EKSPOR BAB" Classes="section"
+                           VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding ChapterTitle}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           FontSize="13" FontWeight="SemiBold"
+                           TextTrimming="CharacterEllipsis" Margin="12,0" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                    <Button Classes="tool" Content="&#x276E;" Command="{Binding PrevPageCommand}" />
+                    <TextBlock Text="{Binding PageIndicatorShort}" VerticalAlignment="Center"
+                               FontSize="13" MinWidth="34" TextAlignment="Center" />
+                    <Button Classes="tool" Content="&#x276F;" Command="{Binding NextPageCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid ColumnDefinitions="196,*" Margin="12">
+            <!-- Panel halaman kiri -->
+            <Border Background="#17191F" CornerRadius="7">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Classes="section" Text="HALAMAN"
+                               Margin="10,8,10,4" />
+                    <ListBox ItemsSource="{Binding Pages}"
+                             SelectedIndex="{Binding SelectedPageIndex}"
+                             Background="Transparent"
+                             ItemTemplate="{StaticResource PageThumbTemplate}" />
+                </DockPanel>
+            </Border>
+
+            <!-- Kartu pilihan ekspor -->
+            <ScrollViewer Grid.Column="1" Margin="12,0,0,0">
+                <StackPanel Spacing="14" MaxWidth="600"
+                            HorizontalAlignment="Left" Margin="2,0,6,0">
+                    <TextBlock Text="Ekspor menulis halaman FINAL bab ini — gambar bersih + teks ter-typeset, sama seperti hasil render. Halaman tanpa blok diekspor apa adanya."
+                               Foreground="#8A939E" FontSize="12" TextWrapping="Wrap" />
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="section" Text="BENTUK KELUARAN" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <ToggleButton Content="CBZ" IsChecked="{Binding ExportToCbz}"
+                                          ToolTip.Tip="Arsip ZIP berisi gambar halaman + ComicInfo.xml" />
+                            <ToggleButton Content="PDF" IsChecked="{Binding ExportToPdf}"
+                                          ToolTip.Tip="Satu berkas PDF, satu halaman per gambar" />
+                            <ToggleButton Content="Folder" IsChecked="{Binding ExportToFolder}"
+                                          ToolTip.Tip="Satu berkas gambar per halaman di folder baru" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="section" Text="FORMAT GAMBAR" />
+                        <ComboBox ItemsSource="{Binding ExportImageFormatOptions}"
+                                  SelectedItem="{Binding ExportImageFormatChoice}"
+                                  IsEnabled="{Binding ExportImageFormatEnabled}"
+                                  Width="180" HorizontalAlignment="Left" />
+                        <TextBlock Text="Asli = format sumber tiap halaman. Untuk PDF pilihan ini tidak berlaku."
+                                   Foreground="#8A939E" FontSize="11" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="section" Text="KUALITAS (JPG / WEBP)" />
+                        <Grid ColumnDefinitions="Auto,*">
+                            <NumericUpDown Value="{Binding ExportQualityValue}"
+                                           Minimum="1" Maximum="100" Increment="1"
+                                           Width="120" HorizontalAlignment="Left"
+                                           ToolTip.Tip="1–100; bawaan 90" />
+                            <TextBlock Grid.Column="1" Text="Makin tinggi makin tajam &amp; makin besar berkasnya."
+                                       Foreground="#8A939E" FontSize="11"
+                                       VerticalAlignment="Center" Margin="10,0,0,0"
+                                       TextWrapping="Wrap" />
+                        </Grid>
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Classes="section" Text="FOLDER TUJUAN" />
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBox Text="{Binding ExportFolderPath}"
+                                     ToolTip.Tip="Folder tempat berkas hasil ditulis" />
+                            <Button x:Name="PickFolderButton" Grid.Column="1"
+                                    Content="Pilih Folder…" Margin="6,0,0,0" />
+                        </Grid>
+                        <TextBlock Text="{Binding ExportDestinationHint}"
+                                   Foreground="#8A939E" FontSize="11" TextWrapping="Wrap" />
+                        <TextBlock Text="Berkas yang sudah ada tidak ditimpa — hasil baru diberi akhiran (2), (3), dst."
+                                   Foreground="#8A939E" FontSize="11" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <Button x:Name="ExportButton" Classes="primary" Content="Ekspor Bab"
+                            HorizontalAlignment="Left" Padding="22,8"
+                            IsEnabled="{Binding HasChapter}" />
+                    <TextBlock Text="{Binding ExportResultText}" FontSize="12"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </DockPanel>
+</UserControl>

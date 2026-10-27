@@ -373,6 +373,7 @@ public sealed partial class MainWindowViewModel
         IsDetectActive = false;
         IsCleanActive = false;
         IsTranslateActive = false;
+        IsExportActive = false;
         IsTypesetActive = true;
         LoadTypesetForCurrentPage();
         Raise(nameof(ContextInfo));

@@ -12,6 +12,11 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // Mode CLI di Windows: .exe WinExe tidak mewarisi konsol
+        // pemanggil — tempel ke konsol induk agar keluaran CLI
+        // terlihat (no-op di platform lain & untuk mode GUI).
+        if (args.Any(a => a.StartsWith("--", StringComparison.Ordinal)))
+            ConsoleAttach.TryAttachParentConsole();
         Console.OutputEncoding = Encoding.UTF8;
 
         // Mode CLI: --info <berkas/folder komik> — tanpa membuka UI.
@@ -55,6 +60,16 @@ internal static class Program
             Environment.ExitCode = RunRender(args);
             return;
         }
+        // Mode CLI: --export <berkas/folder komik> [--format cbz|pdf|folder]
+        // [--img asli|jpg|png|webp] [--quality n] [--out <jalur>] —
+        // ekspor bab sebagai halaman final (bersih + typeset):
+        // CBZ/PDF berkas tunggal, atau folder berisi gambar per
+        // halaman. Keluaran tidak menimpa berkas yang sudah ada.
+        if (args.Length >= 2 && args[0] == "--export")
+        {
+            Environment.ExitCode = RunExport(args);
+            return;
+        }
         // Mode CLI: --download-models — unduh semua model katalog.
         if (args.Length >= 1 && args[0] == "--download-models")
         {
@@ -74,6 +89,8 @@ internal static class Program
             Console.WriteLine("                                           terjemahkan blok OCR (key dari Pengaturan aplikasi)");
             Console.WriteLine("  TintaStudio --render <path> [--out <folder>]");
             Console.WriteLine("                                           gambar halaman final (bersih + typeset) ke folder");
+            Console.WriteLine("  TintaStudio --export <path> [--format cbz|pdf|folder] [--img asli|jpg|png|webp] [--quality n] [--out <jalur>]");
+            Console.WriteLine("                                           ekspor bab final sebagai CBZ/PDF/folder");
             Console.WriteLine("  TintaStudio --download-models            unduh model deteksi/OCR/inpaint ke cache");
             return;
         }
@@ -561,6 +578,151 @@ internal static class Program
             }
         }
     }
+
+    private static int RunExport(string[] args)
+    {
+        string path = args[1];
+        var kind = ExportKind.Cbz;
+        var img = ExportImageFormat.Original;
+        int quality = 90;
+        string? outPath = null;
+        for (int i = 2; i + 1 < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--format":
+                    kind = args[i + 1] switch
+                    {
+                        "cbz" => ExportKind.Cbz,
+                        "pdf" => ExportKind.Pdf,
+                        "folder" => ExportKind.Folder,
+                        var other => throw new ArgumentException(
+                            $"Format tidak dikenal: '{other}' (pakai cbz|pdf|folder)."),
+                    };
+                    break;
+                case "--img":
+                    img = args[i + 1] switch
+                    {
+                        "asli" => ExportImageFormat.Original,
+                        "jpg" => ExportImageFormat.Jpg,
+                        "png" => ExportImageFormat.Png,
+                        "webp" => ExportImageFormat.WebP,
+                        var other => throw new ArgumentException(
+                            $"Format gambar tidak dikenal: '{other}' (pakai asli|jpg|png|webp)."),
+                    };
+                    break;
+                case "--quality":
+                    if (!int.TryParse(args[i + 1], out quality)
+                        || quality < 1 || quality > 100)
+                    {
+                        Console.Error.WriteLine(
+                            $"Error: --quality harus angka 1–100 (diberikan '{args[i + 1]}').");
+                        return 2;
+                    }
+                    break;
+                case "--out":
+                    outPath = args[i + 1];
+                    break;
+            }
+        }
+
+        // Tujuan: --out untuk Folder = folder tujuan itu sendiri;
+        // untuk CBZ/PDF = jalur berkas bila berakhiran .cbz/.pdf,
+        // selain itu nama folder yang diisi <namafile>.cbz/.pdf.
+        // Bawaan tanpa --out: folder tinta-export di direktori kerja.
+        var baseName = ExportService.SafeFileName(
+            Path.GetFileNameWithoutExtension(path));
+        string destination;
+        if (kind == ExportKind.Folder)
+        {
+            destination = outPath ?? Path.Combine(
+                Directory.GetCurrentDirectory(), "tinta-export", baseName);
+        }
+        else
+        {
+            var ext = kind == ExportKind.Cbz ? ".cbz" : ".pdf";
+            if (outPath is null)
+                destination = Path.Combine(
+                    Directory.GetCurrentDirectory(), "tinta-export", baseName + ext);
+            else if (outPath.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
+                destination = outPath;
+            else
+                destination = Path.Combine(outPath, baseName + ext);
+        }
+
+        var workDir = Path.Combine(
+            Path.GetTempPath(), "tinta-studio-export-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var chapter = ComicImport.OpenChapter(path, workDir);
+            var (project, projectChapter) = ProjectStore.GetOrCreate(chapter);
+
+            // Sama seperti --render: proyek tanpa blok sama sekali →
+            // deteksi+OCR dulu (bahasa ja) agar ekspor berdiri sendiri.
+            if (projectChapter.Pages.Sum(p => p.Blocks.Count) == 0)
+            {
+                using var pipeline = new DetectOcrPipeline();
+                var progress = new Progress<(int Done, int Total)>(p =>
+                    Console.Error.WriteLine($"  deteksi halaman {p.Done}/{p.Total}…"));
+                pipeline.AnalyzeChapterAsync(
+                    chapter, projectChapter, OcrLanguage.Japanese, progress,
+                    CancellationToken.None).GetAwaiter().GetResult();
+            }
+
+            var options = new ExportOptions(kind, img, quality);
+            var exportProgress = new Progress<string>(m => Console.WriteLine($"  {m}"));
+            var result = ExportService.ExportChapter(
+                chapter, projectChapter, destination, options,
+                CancellationToken.None, exportProgress);
+            ProjectStore.Save(project, chapter.SourcePath);
+            Console.WriteLine(
+                $"Ekspor selesai: {chapter.Title} — {result.PageCount} halaman " +
+                $"({kind.ToString().ToLowerInvariant()}) → {result.OutputPath} " +
+                $"({FormatBytes(result.TotalBytes)})");
+            return 0;
+        }
+        catch (ModelMissingException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 3;
+        }
+        catch (ComicImportException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 2;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            if (Environment.GetEnvironmentVariable("TINTA_DEBUG") == "1")
+                Console.Error.WriteLine(ex.ToString());
+            return 1;
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(workDir)) Directory.Delete(workDir, recursive: true);
+            }
+            catch (Exception)
+            {
+                // berkas sementara gagal dihapus bukan masalah besar
+            }
+        }
+    }
+
+    /// <summary>Ukuran byte terbaca manusia untuk ringkasan CLI.</summary>
+    private static string FormatBytes(long bytes) => bytes switch
+    {
+        >= 1024 * 1024 => $"{bytes / (1024.0 * 1024):F1} MB",
+        >= 1024 => $"{bytes / 1024.0:F1} KB",
+        _ => $"{bytes} byte",
+    };
 
     private static ChapterTranslationSummary CountSummary(
         Models.ProjectChapter chapter)

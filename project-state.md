@@ -515,3 +515,85 @@
     v0.5.1 tidak ditimpa Terapkan Otomatis (aturan lama: gaya
     eksplisit dihormati) — pengguna mematikan Vertikal/hapus
     gaya dulu, atau blok baru otomatis benar. Tersisa Tahap 6.
+- 2026-10-27: **Tahap 6 (v0.6.0) SELESAI — Ekspor + Packaging
+  (TAHAP TERAKHIR rencana 6 tahap).**
+  - **Layanan ekspor `Services/Export.cs`** (`ExportService.
+    ExportChapter`): mengekspor bab terbuka menjadi halaman
+    FINAL lewat jalur yang SAMA dengan `--render`
+    (`TypesetService.BuildFinalPageBitmap`: gambar bersih
+    Tahap 3 + typeset Tahap 5; typeset bawaan diterapkan dulu
+    ke blok berterjemahan yang belum di-typeset; halaman tanpa
+    blok/terjemahan diekspor apa adanya) ke tiga bentuk:
+    **CBZ** (ZIP `page-001…` + ComicInfo.xml — disalin persis
+    dari sumber bila sumbernya arsip ZIP, selain itu dibuat
+    dari metadata judul/seri bab), **PDF** (satu halaman per
+    gambar, `SKDocument.CreatePdf` SkiaSharp — TANPA dependensi
+    baru), **Folder** (satu berkas gambar per halaman). Format
+    gambar pilihan **Asli** (format sumber tiap halaman;
+    yang tak bisa dikodekan ulang — mis. halaman PDF — jatuh
+    ke PNG) / **JPG** / **PNG** / **WebP**, kualitas JPG/WebP
+    bisa diatur (bawaan 90). Keluaran TIDAK menimpa diam-diam:
+    berkas yang sudah ada diberi akhiran " (2)", " (3)", dst.
+    (`ExportService.UniqueFilePath`; teruji).
+  - **UI halaman "Ekspor"** (menggantikan tombol nonaktif
+    "Ekspor (segera)" di sidebar): toolbar pola halaman lain
+    (judul bab + chevron–X/Y–chevron), panel halaman kiri,
+    kartu pilihan — toggle CBZ/PDF/Folder, ComboBox format
+    gambar (nonaktif untuk PDF), NumericUpDown kualitas,
+    folder tujuan (TextBox + dialog "Pilih Folder…"), petunjuk
+    nama hasil, tombol primary "Ekspor Bab", teks hasil
+    (jalur + ukuran). Bug kecil tertangkap screenshot pertama
+    & diperbaiki di tahap ini juga: petunjuk nama berkas diam
+    di nilai "bab" karena `ExportDestinationHint` tidak
+    di-Raise saat bab berubah — kini di-Raise dari setter
+    CurrentChapter + ShowExport; screenshot ulang membuktikan
+    "Bab Demo — Tiga Halaman.cbz". Bukti visual:
+    tmp/tinta-v06-ui.png.
+  - **CLI `--export <bab> [--format cbz|pdf|folder]
+    [--img asli|jpg|png|webp] [--quality n] [--out <jalur>]`**
+    mengikuti pola RunRender (OCR ja dulu bila proyek tanpa
+    blok; proyek disimpan sesudah ekspor; ringkasan
+    "Ekspor selesai: … — N halaman (bentuk) → jalur (ukuran)";
+    exit 2 argumen buruk, 3 model hilang, 1 gagal lain).
+    Semantik --out: Folder = folder tujuan itu sendiri;
+    CBZ/PDF = jalur berkas bila berakhiran .cbz/.pdf, selain
+    itu folder yang diisi <namafile>.cbz/.pdf; bawaan =
+    ./tinta-export/.
+  - **Packaging Windows**: `ConsoleAttach.TryAttachParentConsole`
+    (ConsoleAttach.cs) — P/Invoke kernel32
+    `AttachConsole(ATTACH_PARENT_PROCESS)` HANYA bila ada
+    argumen CLI & platform Windows, lalu aliran standar dibuka
+    ulang; di platform lain no-op total, mode GUI tak
+    terpengaruh. Kode terkompilasi & CLI terverifikasi jalan
+    di Linux (uji asap + tes CLI di bawah); perilaku menempel
+    konsol di Windows asli baru terbukti saat Ando mencobanya
+    di PC (batas jujur yang sama seperti tahap sebelumnya).
+  - Tes: **73 total — 72 lolos, 0 gagal, 1 skip** (skip lama
+    bersyarat sandbox yang sama; 66 tes lama TANPA regresi &
+    tanpa diubah) + 7 baru di `TintaStudio.Tests/ExportTests.cs`:
+    CBZ JPG (entri ComicInfo + 3 halaman, magic FF D8, entri
+    pertama terdekode 1000×1400); CBZ Asli (entri .png, magic
+    PNG); CBZ dua kali (kedua ber-akhiran " (2)", tak menimpa);
+    Folder WebP (3 berkas, magic RIFF/WEBP, ukuran benar);
+    PDF (awalan %PDF, "/Count 3", 3 MediaBox); halaman
+    ber-typeset ikut tergambar di ekspor folder (densitas
+    tinta di kotak blok > 0,02); CLI --export pada fixture
+    (folder PNG + "Ekspor selesai"). tmp/xunit-results-v06.xml.
+    Build Release bersih 0/0; publish win-x64 single-file:
+    **TintaStudio.exe 124.670.545 byte** (PE32+ GUI;
+    v0.5.2: 124.633.681).
+  - Batas jujur: (1) ekspor memakai render final yang sama
+    dengan --render, bukan jalur terpisah — cacat render apa
+    pun berlaku sama di ekspor; (2) AVIF tetap tidak bisa
+    didekode (halaman AVIF terlewati sejak impor Tahap 1);
+    (3) CBR baca tetap terimplementasi tapi BELUM teruji
+    fixture (tidak ada penulis RAR di VM); (4) PDF hasil =
+    gambar per halaman (tanpa lapisan teks/OCR tersembunyi);
+    kualitas PDF mengikuti bitmap halaman; (5) kualitas
+    visual manga asli belum diukur (fixture sintetis bersih).
+  - Dengan ini rencana 6 tahap Tinta Studio TUNTAS
+    (v0.1.0 → v0.6.0). Yang masih menggantung di luar rencana:
+    uji .exe di Windows asli oleh Ando (termasuk konsol CLI
+    menempel + terjemahan penyedia asli), satu berkas .cbr
+    asli untuk verifikasi baca RAR, dan editor poligon bubble
+    vektor (ditunda sejak Tahap 5).

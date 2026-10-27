@@ -38,4 +38,15 @@ public static class FilePickers
         });
         return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
     }
+
+    /// <summary>Pemilih folder generik (mis. folder tujuan ekspor).</summary>
+    public static async Task<string?> PickFolderAsync(TopLevel top, string title)
+    {
+        var folders = await top.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = false,
+        });
+        return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
+    }
 }

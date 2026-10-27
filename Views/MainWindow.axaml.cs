@@ -14,6 +14,7 @@ public partial class MainWindow : Window
         MenuClean.Click += (_, _) => ViewModel?.ShowClean();
         MenuTranslate.Click += (_, _) => ViewModel?.ShowTranslate();
         MenuTypeset.Click += (_, _) => ViewModel?.ShowTypeset();
+        MenuExport.Click += (_, _) => ViewModel?.ShowExport();
         Opened += OnOpened;
     }
 
@@ -31,12 +32,13 @@ public partial class MainWindow : Window
                     or nameof(MainWindowViewModel.IsDetectActive)
                     or nameof(MainWindowViewModel.IsCleanActive)
                     or nameof(MainWindowViewModel.IsTranslateActive)
-                    or nameof(MainWindowViewModel.IsTypesetActive))
+                    or nameof(MainWindowViewModel.IsTypesetActive)
+                    or nameof(MainWindowViewModel.IsExportActive))
                     UpdateMenuStyles();
             };
 
             // Alat uji & screenshot: TINTA_OPEN=<jalur> membuka bab otomatis,
-            // TINTA_VIEW=library|viewer|detect|clean|translate|typeset memilih halaman awal.
+            // TINTA_VIEW=library|viewer|detect|clean|translate|typeset|export memilih halaman awal.
             var autoOpen = Environment.GetEnvironmentVariable("TINTA_OPEN");
             if (!string.IsNullOrWhiteSpace(autoOpen))
                 await vm.OpenChapterPathAsync(autoOpen);
@@ -46,6 +48,7 @@ public partial class MainWindow : Window
                 case "clean": vm.ShowClean(); break;
                 case "translate": vm.ShowTranslate(); break;
                 case "typeset": vm.ShowTypeset(); break;
+                case "export": vm.ShowExport(); break;
                 case "viewer": vm.ShowViewer(); break;
                 case "library": vm.ShowLibrary(); break;
             }
@@ -60,6 +63,7 @@ public partial class MainWindow : Window
         SetActive(MenuClean, ViewModel?.IsCleanActive ?? false);
         SetActive(MenuTranslate, ViewModel?.IsTranslateActive ?? false);
         SetActive(MenuTypeset, ViewModel?.IsTypesetActive ?? false);
+        SetActive(MenuExport, ViewModel?.IsExportActive ?? false);
     }
 
     private static void SetActive(Button button, bool active)

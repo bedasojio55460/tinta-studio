@@ -512,6 +512,7 @@ public sealed partial class MainWindowViewModel
         IsDetectActive = false;
         IsTranslateActive = false;
         IsTypesetActive = false;
+        IsExportActive = false;
         IsCleanActive = true;
         RefreshModelStatuses();
         Raise(nameof(InpaintModelStatus));

@@ -11,6 +11,27 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.6.0 — Tahap 6 (Ekspor + Packaging) — RENCANA 6 TAHAP TUNTAS
+
+- **Ekspor bab menjadi halaman FINAL** (gambar bersih + teks
+  ter-typeset, jalur render yang sama dengan `--render`) ke
+  tiga bentuk: **CBZ** (ZIP berisi `page-001…` + ComicInfo.xml
+  bab bila ada), **PDF** (satu halaman per gambar, penulis PDF
+  bawaan SkiaSharp), atau **Folder** (satu berkas per halaman).
+  Format gambar pilihan: **Asli** (format sumber tiap halaman),
+  **JPG**, **PNG**, **WebP**; kualitas JPG/WebP bisa diatur
+  (bawaan 90). Berkas tujuan yang sudah ada **tidak ditimpa** —
+  hasil baru diberi akhiran (2), (3), dst.
+- **Halaman Ekspor** di aplikasi: pilihan bentuk keluaran,
+  format gambar, kualitas, folder tujuan (dialog pilih folder),
+  tombol Ekspor, dan ringkasan hasil (jalur + ukuran). CLI:
+  `--export <bab> [--format cbz|pdf|folder] [--img
+  asli|jpg|png|webp] [--quality n] [--out <jalur>]`.
+- **Packaging Windows**: mode CLI kini menempel ke konsol
+  pemanggil (`AttachConsole` khusus Windows; di platform lain
+  tidak berpengaruh) sehingga keluaran `--export`/`--render`/
+  dll. terlihat saat .exe dipanggil dari terminal.
+
 ## Status: v0.5.2 — Tahap 5 (Typesetting) + arah vertikal
 
 - **Perbaikan v0.5.2 — arah typeset mengikuti arah sumber**

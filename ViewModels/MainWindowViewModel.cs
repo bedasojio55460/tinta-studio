@@ -100,7 +100,8 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     }
 
     public bool IsViewerActive => !IsLibraryActive && !IsDetectActive
-        && !IsCleanActive && !IsTranslateActive && !IsTypesetActive;
+        && !IsCleanActive && !IsTranslateActive && !IsTypesetActive
+        && !IsExportActive;
 
     public LibraryEntry? SelectedLibraryEntry
     {
@@ -120,6 +121,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 Raise(nameof(PageIndicator));
                 Raise(nameof(PageIndicatorShort));
                 Raise(nameof(ContextInfo));
+                Raise(nameof(ExportDestinationHint));
             }
         }
     }
@@ -212,6 +214,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         IsCleanActive = false;
         IsTranslateActive = false;
         IsTypesetActive = false;
+        IsExportActive = false;
         IsLibraryActive = true;
     }
 
@@ -221,6 +224,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         IsCleanActive = false;
         IsTranslateActive = false;
         IsTypesetActive = false;
+        IsExportActive = false;
         IsLibraryActive = false;
     }
 
@@ -230,6 +234,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         IsCleanActive = false;
         IsTranslateActive = false;
         IsTypesetActive = false;
+        IsExportActive = false;
         IsDetectActive = true;
         RefreshModelStatuses();
         LoadBlocksForCurrentPage();

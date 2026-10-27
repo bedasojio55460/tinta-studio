@@ -13,7 +13,7 @@
         <Border DockPanel.Dock="Bottom" Background="#101216"
                 BorderBrush="#26292F" BorderThickness="0,1,0,0" Padding="12,6">
             <Grid ColumnDefinitions="Auto,*,Auto">
-                <TextBlock Text="v0.5.2 — Typesetting" Foreground="#8A939E" FontSize="12" />
+                <TextBlock Text="v0.6.0 — Ekspor" Foreground="#8A939E" FontSize="12" />
                 <TextBlock Grid.Column="1" Text="{Binding StatusText}" Margin="18,0,12,0"
                            FontSize="12" TextTrimming="CharacterEllipsis" />
                 <TextBlock Grid.Column="2" Text="{Binding ContextInfo}" Foreground="#8A939E"
@@ -39,7 +39,7 @@
                         <Button x:Name="MenuClean" Classes="menu" Content="Bersihkan" />
                         <Button x:Name="MenuTranslate" Classes="menu" Content="Terjemahan" />
                         <Button x:Name="MenuTypeset" Classes="menu" Content="Typesetting" />
-                        <Button Classes="menu" Content="Ekspor (segera)" IsEnabled="False" />
+                        <Button x:Name="MenuExport" Classes="menu" Content="Ekspor" />
                     </StackPanel>
                 </DockPanel>
             </Border>
@@ -52,6 +52,7 @@
                 <views:CleanView IsVisible="{Binding IsCleanActive}" />
                 <views:TranslateView IsVisible="{Binding IsTranslateActive}" />
                 <views:TypesetView IsVisible="{Binding IsTypesetActive}" />
+                <views:ExportView IsVisible="{Binding IsExportActive}" />
             </Grid>
         </Grid>
     </DockPanel>
