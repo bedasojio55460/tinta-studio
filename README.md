@@ -11,6 +11,27 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.7.10 — Ikon Aplikasi pada .exe
+
+Berkas `TintaStudio.exe` hasil publish kini menampilkan
+**ikon aplikasi sendiri** (logo tetes tinta teal yang sama
+dengan logo di sidebar) di Windows Explorer, desktop, dan
+taskbar — sebelumnya tampil ikon bawaan generik .NET karena
+`.csproj` belum punya `<ApplicationIcon>`.
+
+- **Aset baru**: `Assets/logo.ico` multi-ukuran
+  (16/20/24/32/48/64/128/256 px), dikonversi langsung dari
+  `Assets/logo.png` (256×256 RGBA) — desain logo tidak
+  berubah. Ikon jendela aplikasi (sudah dari `logo.png`)
+  tidak diubah.
+- **Integrasi**: `<ApplicationIcon>Assets/logo.ico</ApplicationIcon>`
+  di `TintaStudio.csproj`; ikon tertanam diverifikasi dengan
+  mengekstrak sumber daya ikon dari .exe hasil publish
+  (hasil ekstraksi = logo tetes tinta, bukan ikon generik).
+- **Tes: 109 total — 108 lolos, 0 gagal, 1 skip** (XML
+  `tmp/xunit-results-v0710.xml`; sama hijau dengan baseline
+  v0.7.9; skip = loopback sandbox yang sama).
+
 ## Status: v0.7.9 — Mode OCR Otomatis
 
 Pemilih bahasa halaman Deteksi & OCR kini punya pilihan

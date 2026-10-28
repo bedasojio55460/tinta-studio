@@ -1014,3 +1014,18 @@
   = rec kandidat×sampel per halaman + coba-ulang blok
   lemah; Han murni ja-vs-ch diputuskan keyakinan saja.
   Commit lokal, tidak di-push.
+- 2026-10-28: **v0.7.10 — Ikon aplikasi pada .exe
+  (permintaan Ando)**: jendela aplikasi sudah berikon
+  `logo.png`, tetapi `.csproj` belum punya
+  `<ApplicationIcon>` sehingga `TintaStudio.exe` tampil
+  berikon generik .NET di Explorer/desktop/taskbar. Aset
+  baru `Assets/logo.ico` multi-ukuran
+  (16/20/24/32/48/64/128/256 px) dikonversi langsung dari
+  `Assets/logo.png` (256×256 RGBA; desain tidak berubah);
+  `<ApplicationIcon>Assets/logo.ico</ApplicationIcon>`
+  ditambahkan ke `TintaStudio.csproj`. Verifikasi: ikon
+  diekstrak balik dari .exe hasil publish — hasilnya logo
+  tetes tinta Tinta Studio, bukan ikon generik. Tes: 109
+  total — 108 lolos, 0 gagal, 1 skip (XML
+  tmp/xunit-results-v0710.xml; sama hijau dengan baseline
+  v0.7.9). Commit lokal, tidak di-push.
