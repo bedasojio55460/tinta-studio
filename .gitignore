@@ -10,3 +10,7 @@ artifacts/
 tmp/
 .venv/
 __pycache__/
+
+# Panduan & hasil lokal (tidak di-upload)
+panduan-video/
+tinta-cleaned/
