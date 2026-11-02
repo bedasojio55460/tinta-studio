@@ -145,6 +145,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
                 RefreshCleanStateForCurrentPage();
                 LoadTranslateForCurrentPage();
                 LoadTypesetForCurrentPage();
+                Raise(nameof(CanSplitCurrentPage));
+                Raise(nameof(IsSplitSlicePage));
+                Raise(nameof(SplitPageInfo));
                 PrevPageCommand.RaiseCanExecuteChanged();
                 NextPageCommand.RaiseCanExecuteChanged();
             }
@@ -312,14 +315,38 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     private void ApplyChapter(Chapter chapter)
     {
-        CurrentChapter = chapter;
         (_project, _projectChapter) = ProjectStore.GetOrCreate(chapter);
+        // Bab yang tampil = bab efektif: potongan halaman panjang
+        // (provenans proyek v7) mengembang menggantikan induknya.
+        _originalChapter = chapter;
+        var effective = ChapterSplitService.BuildEffectiveChapter(chapter, _projectChapter);
+        CurrentChapter = effective;
         Pages.Clear();
-        foreach (var page in chapter.Pages)
+        foreach (var page in effective.Pages)
             Pages.Add(new PageItemViewModel(page));
         _selectedPageIndex = -1;
         Raise(nameof(SelectedPageIndex));
-        SelectedPageIndex = chapter.Pages.Count > 0 ? 0 : -1;
+        SelectedPageIndex = effective.Pages.Count > 0 ? 0 : -1;
+    }
+
+    /// <summary>Bangun ulang daftar halaman tampil dari bab asli +
+    /// provenans saat ini (sesudah potong/sambung), pertahankan
+    /// posisi pilih sedapat mungkin lewat indeks efektif tujuan.</summary>
+    private void RebuildEffectiveChapter(int selectEffective)
+    {
+        if (_originalChapter is null || _projectChapter is null)
+            return;
+        var effective = ChapterSplitService.BuildEffectiveChapter(
+            _originalChapter, _projectChapter);
+        CurrentChapter = effective;
+        Pages.Clear();
+        foreach (var page in effective.Pages)
+            Pages.Add(new PageItemViewModel(page));
+        _selectedPageIndex = -1;
+        Raise(nameof(SelectedPageIndex));
+        SelectedPageIndex = effective.Pages.Count == 0
+            ? -1
+            : Math.Clamp(selectEffective, 0, effective.Pages.Count - 1);
     }
 
     private void UpdateCurrentPageBitmap()

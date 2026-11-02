@@ -82,6 +82,20 @@ public sealed partial class MainWindowViewModel
 
     public ExportKind ExportKindChoice => _exportKind;
 
+    // ─── Sambung potongan saat ekspor (v0.7.14) ──────────────────
+
+    private bool _exportStitchSplits = true;
+
+    /// <summary>Bila bab punya halaman yang dipotong: true =
+    /// potongan disambung kembali menjadi strip utuh persis
+    /// dimensi aslinya saat ekspor; false = ekspor per potongan
+    /// apa adanya. Bawaan true (mengembalikan bentuk asal).</summary>
+    public bool ExportStitchSplits
+    {
+        get => _exportStitchSplits;
+        set => Set(ref _exportStitchSplits, value);
+    }
+
     // ─── Format gambar & kualitas ────────────────────────────────
 
     public IReadOnlyList<string> ExportImageFormatOptions { get; } =
@@ -172,7 +186,8 @@ public sealed partial class MainWindowViewModel
             };
             var options = new ExportOptions(
                 _exportKind, ExportImageFormatParsed,
-                (int)(_exportQualityValue ?? 90));
+                (int)(_exportQualityValue ?? 90),
+                StitchSplits: _exportStitchSplits);
             var result = await Task.Run(() => ExportService.ExportChapter(
                 chapter, projectChapter, destination, options,
                 CancellationToken.None));

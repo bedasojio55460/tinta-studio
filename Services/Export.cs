@@ -25,9 +25,13 @@ public enum ExportImageFormat
 }
 
 /// <summary>Pilihan ekspor: bentuk + format gambar + kualitas
-/// (1–100, hanya berlaku untuk JPG/WebP; bawaan 90).</summary>
+/// (1–100, hanya berlaku untuk JPG/WebP; bawaan 90).
+/// StitchSplits (v0.7.14): potongan halaman panjang disambung
+/// kembali menjadi strip utuh persis dimensi aslinya saat ekspor;
+/// false = ekspor per potongan apa adanya.</summary>
 public sealed record ExportOptions(
-    ExportKind Kind, ExportImageFormat ImageFormat, int Quality = 90);
+    ExportKind Kind, ExportImageFormat ImageFormat, int Quality = 90,
+    bool StitchSplits = false);
 
 /// <summary>Hasil ekspor: jalur keluaran akhir (sudah diunikkan
 /// agar tidak menimpa), jumlah halaman, total byte tertulis, dan
@@ -73,25 +77,27 @@ public static class ExportService
         using var clean = new CleanService();
         var files = new List<string>();
         long totalBytes = 0;
+        var plan = BuildOutputPlan(chapter, projectChapter, options.StitchSplits);
 
         switch (options.Kind)
         {
             case ExportKind.Folder:
             {
                 Directory.CreateDirectory(destination);
-                for (int i = 0; i < chapter.Pages.Count; i++)
+                for (int i = 0; i < plan.Count; i++)
                 {
                     ct.ThrowIfCancellationRequested();
-                    var (bytes, ext) = EncodeFinalPage(
-                        chapter, projectChapter, clean, i, options.ImageFormat, quality, ct);
+                    var (bytes, ext) = EncodeOutputPage(
+                        chapter, projectChapter, clean, plan[i],
+                        options.ImageFormat, quality, ct);
                     string file = UniqueFilePath(
                         Path.Combine(destination, $"page-{i + 1:D3}{ext}"));
                     File.WriteAllBytes(file, bytes);
                     files.Add(file);
                     totalBytes += bytes.Length;
-                    progress?.Report($"Halaman {i + 1}/{chapter.Pages.Count} → {file}");
+                    progress?.Report($"Halaman {i + 1}/{plan.Count} → {file}");
                 }
-                return new ExportResult(destination, chapter.Pages.Count, totalBytes, files);
+                return new ExportResult(destination, plan.Count, totalBytes, files);
             }
 
             case ExportKind.Cbz:
@@ -110,11 +116,11 @@ public static class ExportService
                         using var es = entry.Open();
                         es.Write(comicInfo, 0, comicInfo.Length);
                     }
-                    for (int i = 0; i < chapter.Pages.Count; i++)
+                    for (int i = 0; i < plan.Count; i++)
                     {
                         ct.ThrowIfCancellationRequested();
-                        var (bytes, ext) = EncodeFinalPage(
-                            chapter, projectChapter, clean, i,
+                        var (bytes, ext) = EncodeOutputPage(
+                            chapter, projectChapter, clean, plan[i],
                             options.ImageFormat, quality, ct);
                         var entry = zip.CreateEntry(
                             $"page-{i + 1:D3}{ext}", CompressionLevel.Optimal);
@@ -122,12 +128,12 @@ public static class ExportService
                         es.Write(bytes, 0, bytes.Length);
                         totalBytes += bytes.Length;
                         progress?.Report(
-                            $"Halaman {i + 1}/{chapter.Pages.Count} → page-{i + 1:D3}{ext}");
+                            $"Halaman {i + 1}/{plan.Count} → page-{i + 1:D3}{ext}");
                     }
                 }
                 totalBytes = new FileInfo(outFile).Length;
                 files.Add(outFile);
-                return new ExportResult(outFile, chapter.Pages.Count, totalBytes, files);
+                return new ExportResult(outFile, plan.Count, totalBytes, files);
             }
 
             case ExportKind.Pdf:
@@ -139,23 +145,22 @@ public static class ExportService
                 using (var fs = File.Create(outFile))
                 using (var doc = SKDocument.CreatePdf(fs))
                 {
-                    for (int i = 0; i < chapter.Pages.Count; i++)
+                    for (int i = 0; i < plan.Count; i++)
                     {
                         ct.ThrowIfCancellationRequested();
-                        var page = projectChapter.PageAt(i);
-                        using var final = TypesetService.BuildFinalPageBitmap(
-                            chapter, projectChapter, page, clean, ct);
+                        using var final = BuildOutputBitmap(
+                            chapter, projectChapter, clean, plan[i], ct);
                         using var canvas = doc.BeginPage(final.Width, final.Height);
                         canvas.DrawBitmap(final, 0, 0);
                         doc.EndPage();
                         progress?.Report(
-                            $"Halaman {i + 1}/{chapter.Pages.Count} → PDF");
+                            $"Halaman {i + 1}/{plan.Count} → PDF");
                     }
                     doc.Close();
                 }
                 totalBytes = new FileInfo(outFile).Length;
                 files.Add(outFile);
-                return new ExportResult(outFile, chapter.Pages.Count, totalBytes, files);
+                return new ExportResult(outFile, plan.Count, totalBytes, files);
             }
 
             default:
@@ -164,20 +169,106 @@ public static class ExportService
         }
     }
 
-    /// <summary>Bangun halaman final ke-i lalu kodekan sesuai format
-    /// pilihan. Mengembalikan byte gambar + ekstensi berkasnya.</summary>
-    private static (byte[] Bytes, string Extension) EncodeFinalPage(
-        Chapter chapter, ProjectChapter projectChapter, CleanService clean,
-        int index, ExportImageFormat format, int quality, CancellationToken ct)
+    /// <summary>Satu halaman keluaran rencana ekspor: daftar
+    /// bagian (indeks halaman efektif + Y tujuan di keluaran);
+    /// satu bagian = halaman biasa, banyak bagian = strip
+    /// tersambung dari potongan satu induk.</summary>
+    private sealed record OutputPage(
+        IReadOnlyList<(int Index, int OffsetY)> Parts,
+        int Width, int Height, string SourceFormat);
+
+    /// <summary>
+    /// Susun rencana halaman keluaran. Tanpa penyambungan (atau
+    /// tanpa potongan / tata letak tak konsisten) rencananya
+    /// identitas: satu keluaran per halaman efektif. Dengan
+    /// penyambungan, potongan-potongan satu induk yang berurutan
+    /// menjadi SATU keluaran setinggi induk aslinya.
+    /// </summary>
+    private static IReadOnlyList<OutputPage> BuildOutputPlan(
+        Chapter chapter, ProjectChapter projectChapter, bool stitch)
     {
-        var page = projectChapter.PageAt(index);
-        using var final = TypesetService.BuildFinalPageBitmap(
-            chapter, projectChapter, page, clean, ct);
-        var (skFormat, ext) = ResolveFormat(format, chapter.Pages[index].SourceFormat);
+        var identity = chapter.Pages
+            .Select((p, i) => new OutputPage(
+                new[] { (i, 0) }, p.Width, p.Height, p.SourceFormat))
+            .ToList();
+        if (!stitch || projectChapter.PageSplits.Count == 0)
+            return identity;
+        int originalCount = projectChapter.PageCount > 0
+            ? projectChapter.PageCount : chapter.Pages.Count;
+        var layout = PageSplitMath.ExpandLayout(originalCount, projectChapter.PageSplits);
+        if (layout.Count != chapter.Pages.Count)
+            return identity;
+
+        var plan = new List<OutputPage>();
+        int i = 0;
+        while (i < layout.Count)
+        {
+            var entry = layout[i];
+            if (entry.SliceIndex < 0)
+            {
+                plan.Add(identity[i]);
+                i++;
+                continue;
+            }
+            var parts = new List<(int Index, int OffsetY)>();
+            int height = 0;
+            int j = i;
+            while (j < layout.Count
+                && layout[j].ParentIndex == entry.ParentIndex
+                && layout[j].SliceIndex >= 0)
+            {
+                parts.Add((j, layout[j].OffsetY));
+                height = Math.Max(height, layout[j].OffsetY + layout[j].Height);
+                j++;
+            }
+            var first = chapter.Pages[i];
+            plan.Add(new OutputPage(parts, first.Width, height, first.SourceFormat));
+            i = j;
+        }
+        return plan;
+    }
+
+    /// <summary>Bangun bitmap satu halaman keluaran rencana:
+    /// halaman tunggal lewat jalur final biasa; strip tersambung
+    /// dengan menggambar final tiap potongan pada offset-nya di
+    /// kanvas setinggi induk.</summary>
+    private static SKBitmap BuildOutputBitmap(
+        Chapter chapter, ProjectChapter projectChapter, CleanService clean,
+        OutputPage output, CancellationToken ct)
+    {
+        if (output.Parts.Count == 1)
+        {
+            var page = projectChapter.PageAt(output.Parts[0].Index);
+            return TypesetService.BuildFinalPageBitmap(
+                chapter, projectChapter, page, clean, ct);
+        }
+        var result = new SKBitmap(output.Width, output.Height);
+        using (var canvas = new SKCanvas(result))
+        {
+            foreach (var (index, offsetY) in output.Parts)
+            {
+                ct.ThrowIfCancellationRequested();
+                var page = projectChapter.PageAt(index);
+                using var final = TypesetService.BuildFinalPageBitmap(
+                    chapter, projectChapter, page, clean, ct);
+                canvas.DrawBitmap(final, 0, offsetY);
+            }
+        }
+        return result;
+    }
+
+    /// <summary>Bangun halaman keluaran lalu kodekan sesuai format
+    /// pilihan. Mengembalikan byte gambar + ekstensi berkasnya.</summary>
+    private static (byte[] Bytes, string Extension) EncodeOutputPage(
+        Chapter chapter, ProjectChapter projectChapter, CleanService clean,
+        OutputPage output, ExportImageFormat format, int quality, CancellationToken ct)
+    {
+        using var final = BuildOutputBitmap(chapter, projectChapter, clean, output, ct);
+        var (skFormat, ext) = ResolveFormat(format, output.SourceFormat);
         using var img = SKImage.FromBitmap(final);
         using var data = img.Encode(skFormat, skFormat == SKEncodedImageFormat.Png ? 100 : quality)
             ?? throw new InvalidDataException(
-                $"Gagal mengkodekan halaman {index + 1} sebagai {skFormat}.");
+                $"Gagal mengkodekan halaman keluaran sebagai {skFormat}.");
         return (data.ToArray(), ext);
     }
 

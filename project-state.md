@@ -1205,3 +1205,115 @@
     VM); keadaan Running/InstalledNotRunning teruji via stub.
     Commit lokal, tidak di-push, tidak diunggah (menunggu kata
     pemilik).
+- 2026-11-02: **v0.7.14 — Halaman Panjang: deteksi berpetak,
+  potong halaman, paket zoom** (laporan pemilik dari berkas
+  asli: halaman strip 900×15.412 hanya menghasilkan 4 blok
+  sampah — "nggak kedetek karena kekecilan", diagnosisnya
+  benar; pemilik juga memilih KEDUA fitur editor dihadirkan:
+  zoom + potong, pengguna yang menilai caranya).
+  - REPRODUKSI (harness dalam-proses, model asli, berkas zip
+    pemilik diekstrak ke tmp/gduk — 20 webp, kebanyakan
+    900×±16.000): pipeline v0.7.13 pada 003.webp = **4 blok**:
+    "©", "ROOKIE AGENT / cYanmaGentaYellow" (watermark),
+    "O" (misdeteksi vertikal), "WHATISIT? / DOYU" (karut) —
+    persis tangkapan layar pemilik. 004.webp = 7 blok karut.
+  - DETEKSI BERPETAK (`Services/TextDetect.cs` + `TileMath`):
+    rasio tinggi/lebar > 2 → petak vertikal tinggi 1,25×lebar,
+    overlap 20%, model per petak (640×640 sama), kotak dipetakan
+    ke koordinat halaman, gabung dedupe IoU ≥ 0,5 SEJENIS (kotak
+    bubble & teks di dalamnya sah bertumpuk — duplikat antar
+    petak selalu sekelas). Halaman biasa: jalur lama persis
+    (RunModel dipisah dari NMS 0,6; perilaku identik). SESUDAH
+    pada berkas sama: 003 = **10 blok** bicara sungguhan
+    tersebar y 1994–14931 ("I CAN DO THIS..!" ocr 0,95;
+    "WOW / A FULL-FLEDGED / AGENT!"; "WHAT IS IT?"; "DO YOU /
+    NEED SOMETHING / FROM ME?"; skor deteksi 0,87–0,94, dulu
+    0,38–0,43); 004 = **15 blok** dialog sungguhan. Biaya jujur:
+    deteksi murni 003 di VM 2,0 dtk → **22,5 dtk** (17 petak);
+    pipeline penuh 43,4 dtk. Sisa jujur: di 004 ada sepasang
+    kotak nyaris tumpang untuk bubble yang sama (IoU < 0,5,
+    tinggi beda) — tidak digabung, perilaku warisan ambang.
+  - POTONG HALAMAN (`Services/PageSplit.cs` murni +
+    `ChapterSplitService` berkas + skema proyek **v7**):
+    tombol "Potong Jadi Halaman Pendek" di Penampil (hanya
+    halaman utuh berasio > 2) — titik potong dicari sebagai
+    baris densitas tinta minimum ≤ 0,002 dalam jendela ±400 px
+    di sekitar sasaran 1.600 px; tanpa celah → potongan persis
+    di sasaran (sesuai rancangan). Provenans `PageSplits`
+    (ParentIndex asli + OffsetY/Height tiap potongan) di
+    ProjectChapter; bab efektif dibangun ChapterSplitService
+    (berkas potongan PNG di folder kerja slices/, dibuat ulang
+    deterministik bila hilang). Blok induk dibagikan ke
+    potongan menurut pusat Y (ops bersih mengikuti BlockId,
+    sapuan menurut titik pertamanya). **Sambung Lagi**: blok/
+    sapuan/ops dipetakan balik (Y + offset), Seq ops+sapuan
+    dinomori ulang, grup dihapus, berkas potongan dihapus.
+    **Ekspor**: ExportOptions.StitchSplits (pilihan di halaman
+    Ekspor, bawaan dicentang, hanya tampil bila ada potongan) —
+    rencana keluaran mengelompokkan potongan seinduk jadi satu
+    strip setinggi induk untuk Folder/CBZ/PDF.
+    BUKTI berkas asli (harness): 003 dipotong → **10 potongan**
+    (tinggi 1600,1768,1758,1600,1234,1600,1466,1600,1600,1186;
+    total tepat 15.412; 3,5 dtk) — 6/9 baris potong densitas
+    **0,0000**; 3 baris fallback persis (y 1600: 0,6867; y 6726:
+    0,6133; y 14226: 0,8333) karena jendela ±400 px memang
+    tanpa celah sama sekali (panel full-bleed gelap > 800 px;
+    terverifikasi terpisah via analisis baris) — dan TIDAK ADA
+    satu pun dari 9 baris potong yang memotong blok teks hasil
+    deteksi berpetak (baris gelap = karya panel, bukan bubble).
+    Ekspor tersambung → strip **900×15.412 PERSIS**; bab
+    20 → 29 → 20 halaman; blok uji di potongan ke-2 kembali ke
+    Y induk persis sesudah Sambung Lagi.
+  - ZOOM (`Services/PageViewport.cs` murni + integrasi Views):
+    Typesetting, Deteksi & OCR, Penampil (kontrol kanvas sama):
+    roda mouse zoom berpusat di kursor (faktor 1,2/langkah,
+    dijepit [fit×0,25 .. 8]), seret area kosong = geser,
+    tombol Pas Layar / 100%, indikator persen, zoom-ke-blok —
+    klik blok di daftar (hanya dari klik daftar; perubahan
+    pilihan dari kanvas/ganti halaman tidak memicu zoom) atau
+    tombol Blok ‹ ›; skala zoom-ke-blok = tinggi blok ≈ 65%
+    viewport, terpusat, dijepit [fit .. 8]. Typesetting: seret
+    blok untuk memindahkan tetap bekerja (seret di atas blok),
+    seret area kosong yang menggeser. Koordinat blok/data tidak
+    berubah — murni tampilan. Halaman Bersihkan TIDAK ikut
+    (kanvasnya berpola sapuan lain; di luar scope).
+  - Tes: **183 total — 182 lolos, 0 gagal, 1 skip** (runner
+    konsol dari TintaStudio.Tests/bin; XML
+    tmp/xunit-results-v0714.xml; baseline v0.7.13: 158/157/0/1;
+    skip = loopback sandbox yang sama). Baru: TiledDetectTests
+    5 (ambang rasio, petak 900×15412 = 17 petak overlap 225
+    menutup ujung bawah, halaman 900×875 tidak dipetak,
+    pemetaan+jepit, gabung), ViewportTests 8 (fit terpusat,
+    jangkar kursor, jepit skala/geser, zoom-ke-blok 65%,
+    round-trip), PageSplitTests 12 (celah di sasaran, celah
+    tak-simetris → tepi terdekat, tanpa celah → persis, ekor,
+    densitas bitmap, tata letak, bagi/gabung blok-sapuan-ops,
+    round-trip v7, muat v6, layanan ujung-ke-ujung + ekspor
+    tersambung 200×5000 sintetis). Catatan proses: dua run
+    suite dari folder runner (bukan Tests/bin) memberi angka
+    menyimpang (skip tes CLI karena jalur DLL aplikasi
+    terhitung dari lokasi rakitan tes) — angka resmi dari
+    hosting Tests/bin seperti patron proyek; satu tes tepi
+    MapToPage sempat salah geometri di draf (kotak di luar
+    tinggi petak terakhir) dan diluruskan.
+  - Build Release bersih 0/0; publish win-x64 single-file
+    (IncludeNativeLibrariesForSelfExtract): **TintaStudio.exe
+    124.940.881 byte** PE32+ GUI di
+    ~/workspace/projects/tinta-studio-publish-v0714/; string
+    "v0.7.14", "Potong Jadi Halaman Pendek", "Sambung Lagi",
+    "Pas Layar" terverifikasi tertanam. VERSION + footer →
+    0.7.14 ("Halaman Panjang & Zoom"). Commit lokal, tidak
+    di-push, tidak diunggah.
+  - Batas jujur: (1) potongan persis menembus karya panel
+    gelap pada strip full-bleed memang tak terhindarkan bila
+    panel lebih tinggi dari sasaran+2×jendela — yang dijaga:
+    tidak memotong blok teks terdeteksi, dan bentuk asal
+    selalu pulih persis lewat Sambung Lagi/ekspor tersambung;
+    (2) interaksi zoom/potong di UI terverifikasi lewat build
+    + tes matematika murni + layanan ujung-ke-ujung headless —
+    klik UI sungguhan di Windows menunggu PC Ando, pola
+    verifikasi yang sama seperti rilis sebelumnya; (3) CLI
+    --ocr/--export tetap beroperasi pada halaman asli hasil
+    impor (tanpa ekspansi potongan) — deteksi berpetak membuat
+    strip tetap tertangani di sana; ekspansi potongan adalah
+    urusan sesi UI + proyeknya.

@@ -14,6 +14,12 @@ namespace TintaStudio.Views;
 /// memilih blok (hit-test kotak render), seret memindahkan blok
 /// terpilih — pratinjau seret hanya menggeser bingkai di overlay;
 /// Dx/Dy baru disimpan ke proyek saat pointer dilepas.
+///
+/// Zoom (v0.7.14): roda mouse berpusat di kursor, seret area
+/// kosong menggeser tampilan, tombol Pas Layar / 100% + indikator
+/// persen, dan zoom-ke-blok (klik blok di daftar atau tombol
+/// Blok ‹ ›). Semua transformasi lewat PageViewport (murni
+/// tampilan — koordinat blok tetap koordinat halaman asli).
 /// </summary>
 public partial class TypesetView : UserControl
 {
@@ -24,12 +30,18 @@ public partial class TypesetView : UserControl
 
     private MainWindowViewModel? _vm;
 
-    // Keadaan seret (dalam piksel halaman).
+    // Keadaan seret blok (dalam piksel halaman).
     private TypesetBlockItemViewModel? _dragItem;
     private int _dragStartX, _dragStartY;
     private int _dragCurX, _dragCurY;
     private int _dragStartDx, _dragStartDy;
     private bool _dragging;
+
+    // Keadaan zoom/pan (v0.7.14).
+    private PageViewport _vp = new();
+    private bool _panning;
+    private Point _panLast;
+    private bool _listPointerDown;
 
     public TypesetView()
     {
@@ -37,9 +49,33 @@ public partial class TypesetView : UserControl
         AutoPageButton.Click += (_, _) => _vm?.ApplyAutoTypesetCurrentPage();
         AutoChapterButton.Click += (_, _) => _vm?.ApplyAutoTypesetChapter();
         OverlayCanvas.SizeChanged += (_, _) => RebuildOverlay();
+        StageGrid.SizeChanged += (_, _) => ApplyViewport();
         StageGrid.PointerPressed += OnStagePointerPressed;
         StageGrid.PointerMoved += OnStagePointerMoved;
         StageGrid.PointerReleased += OnStagePointerReleased;
+        StageGrid.PointerWheelChanged += OnStagePointerWheel;
+        ZoomFitButton.Click += (_, _) =>
+        {
+            if (StageDims() is { } d) { _vp.Fit(d.Cw, d.Ch, d.Pw, d.Ph); ApplyViewport(); }
+        };
+        Zoom100Button.Click += (_, _) =>
+        {
+            if (StageDims() is { } d) { _vp.SetActualSize(d.Cw, d.Ch, d.Pw, d.Ph); ApplyViewport(); }
+        };
+        ZoomBlockPrevButton.Click += (_, _) => StepBlock(-1);
+        ZoomBlockNextButton.Click += (_, _) => StepBlock(+1);
+        BlockList.AddHandler(PointerPressedEvent,
+            (_, _) => _listPointerDown = true, handledEventsToo: true);
+        BlockList.SelectionChanged += (_, _) =>
+        {
+            // Zoom hanya bila pilihan berubah dari klik daftar —
+            // bukan dari klik kanvas / pergantian halaman.
+            if (_listPointerDown)
+            {
+                _listPointerDown = false;
+                ZoomToSelectedBlock();
+            }
+        };
         DataContextChanged += OnDataContextChanged;
     }
 
@@ -56,15 +92,20 @@ public partial class TypesetView : UserControl
             _vm.PropertyChanged += OnVmPropertyChanged;
             _vm.TypesetBlocks.CollectionChanged += OnBlocksChanged;
         }
-        RebuildOverlay();
+        _vp = new PageViewport();
+        ApplyViewport();
     }
 
     private void OnVmPropertyChanged(object? sender,
         System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(MainWindowViewModel.SelectedTypesetBlock)
-            or nameof(MainWindowViewModel.TypesetCanvasBitmap)
-            or nameof(MainWindowViewModel.SelectedPageIndex))
+        if (e.PropertyName is nameof(MainWindowViewModel.SelectedPageIndex))
+        {
+            _vp = new PageViewport();
+            Dispatcher.UIThread.Post(ApplyViewport);
+        }
+        else if (e.PropertyName is nameof(MainWindowViewModel.SelectedTypesetBlock)
+            or nameof(MainWindowViewModel.TypesetCanvasBitmap))
             Dispatcher.UIThread.Post(RebuildOverlay);
     }
 
@@ -72,38 +113,109 @@ public partial class TypesetView : UserControl
         System.Collections.Specialized.NotifyCollectionChangedEventArgs e) =>
         Dispatcher.UIThread.Post(RebuildOverlay);
 
-    // ─── Konversi koordinat (pola halaman Deteksi/Bersihkan) ────────
+    // ─── Viewport zoom/pan ───────────────────────────────────────────
 
-    private (int X, int Y)? ToPagePoint(Point p)
+    private (double Cw, double Ch, int Pw, int Ph)? StageDims()
     {
         var vm = _vm;
         if (vm is null)
             return null;
-        int pageW = vm.CurrentPageWidth, pageH = vm.CurrentPageHeight;
+        int pw = vm.CurrentPageWidth, ph = vm.CurrentPageHeight;
         double cw = StageGrid.Bounds.Width, ch = StageGrid.Bounds.Height;
-        if (pageW <= 0 || pageH <= 0 || cw <= 0 || ch <= 0)
+        if (pw <= 0 || ph <= 0 || cw <= 0 || ch <= 0)
             return null;
-        double scale = Math.Min(cw / pageW, ch / pageH);
-        double ox = (cw - pageW * scale) / 2, oy = (ch - pageH * scale) / 2;
-        int x = (int)((p.X - ox) / scale), y = (int)((p.Y - oy) / scale);
+        return (cw, ch, pw, ph);
+    }
+
+    private void ApplyViewport()
+    {
+        if (StageDims() is not { } d)
+            return;
+        if (!_vp.HasLayout)
+            _vp.Fit(d.Cw, d.Ch, d.Pw, d.Ph);
+        else
+            _vp.ClampOffsets(d.Cw, d.Ch, d.Pw, d.Ph);
+        Canvas.SetLeft(PageImage, _vp.OffsetX);
+        Canvas.SetTop(PageImage, _vp.OffsetY);
+        PageImage.Width = d.Pw * _vp.Scale;
+        PageImage.Height = d.Ph * _vp.Scale;
+        ZoomPercentText.Text = _vp.PercentText;
+        RebuildOverlay();
+    }
+
+    private void OnStagePointerWheel(object? sender, PointerWheelEventArgs e)
+    {
+        if (StageDims() is not { } d)
+            return;
+        var pos = e.GetPosition(StageGrid);
+        _vp.ZoomAt(pos.X, pos.Y, e.Delta.Y > 0 ? 1.2 : 1.0 / 1.2,
+            d.Cw, d.Ch, d.Pw, d.Ph);
+        ApplyViewport();
+        e.Handled = true;
+    }
+
+    private void StepBlock(int delta)
+    {
+        var vm = _vm;
+        if (vm is null || vm.TypesetBlocks.Count == 0)
+            return;
+        int idx = vm.SelectedTypesetBlock is null
+            ? -1 : vm.TypesetBlocks.IndexOf(vm.SelectedTypesetBlock);
+        int next = Math.Clamp(idx + delta, 0, vm.TypesetBlocks.Count - 1);
+        vm.SelectedTypesetBlock = vm.TypesetBlocks[next];
+        ZoomToSelectedBlock();
+    }
+
+    private void ZoomToSelectedBlock()
+    {
+        var vm = _vm;
+        if (vm?.SelectedTypesetBlock is not { } item || StageDims() is not { } d)
+            return;
+        var box = TypesetService.RenderBox(
+            item.Block, TypesetService.EffectiveStyle(item.Block));
+        _vp.ZoomToRect(box.Left, box.Top, box.Width, box.Height,
+            d.Cw, d.Ch, d.Pw, d.Ph);
+        ApplyViewport();
+    }
+
+    // ─── Konversi koordinat lewat viewport ───────────────────────────
+
+    private (int X, int Y)? ToPagePoint(Point p)
+    {
+        var vm = _vm;
+        if (vm is null || !_vp.HasLayout)
+            return null;
+        int pageW = vm.CurrentPageWidth, pageH = vm.CurrentPageHeight;
+        if (pageW <= 0 || pageH <= 0)
+            return null;
+        var page = _vp.ScreenToPage(p.X, p.Y);
+        int x = (int)page.X, y = (int)page.Y;
         if (x < -2000 || y < -2000 || x > pageW + 2000 || y > pageH + 2000)
             return null;
         return (x, y);
     }
 
-    // ─── Pointer: pilih + seret ──────────────────────────────────────
+    // ─── Pointer: pilih + seret blok / geser tampilan ────────────────
 
     private void OnStagePointerPressed(object? sender, PointerPressedEventArgs e)
     {
         var vm = _vm;
         if (vm is null || !e.GetCurrentPoint(StageGrid).Properties.IsLeftButtonPressed)
             return;
-        var pt = ToPagePoint(e.GetPosition(StageGrid));
+        var pos = e.GetPosition(StageGrid);
+        var pt = ToPagePoint(pos);
         if (pt is null)
             return;
         var hit = vm.HitTestTypesetBlock(pt.Value.X, pt.Value.Y);
         if (hit is null)
+        {
+            // Area kosong: seret = geser tampilan (pan).
+            _panning = true;
+            _panLast = pos;
+            e.Pointer.Capture(StageGrid);
+            e.Handled = true;
             return;
+        }
         vm.SelectedTypesetBlock = hit;
         var style = TypesetService.EffectiveStyle(hit.Block);
         _dragItem = hit;
@@ -119,6 +231,16 @@ public partial class TypesetView : UserControl
 
     private void OnStagePointerMoved(object? sender, PointerEventArgs e)
     {
+        if (_panning)
+        {
+            if (StageDims() is not { } d)
+                return;
+            var pos = e.GetPosition(StageGrid);
+            _vp.PanBy(pos.X - _panLast.X, pos.Y - _panLast.Y, d.Cw, d.Ch, d.Pw, d.Ph);
+            _panLast = pos;
+            ApplyViewport();
+            return;
+        }
         if (!_dragging || _dragItem is null)
             return;
         var pt = ToPagePoint(e.GetPosition(StageGrid));
@@ -131,6 +253,11 @@ public partial class TypesetView : UserControl
 
     private void OnStagePointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (_panning)
+        {
+            _panning = false;
+            return;
+        }
         if (!_dragging || _dragItem is null || _vm is null)
             return;
         _dragging = false;
@@ -148,14 +275,14 @@ public partial class TypesetView : UserControl
     {
         OverlayCanvas.Children.Clear();
         var vm = _vm;
-        if (vm is null)
+        if (vm is null || !_vp.HasLayout)
             return;
         int pageW = vm.CurrentPageWidth, pageH = vm.CurrentPageHeight;
         double cw = OverlayCanvas.Bounds.Width, ch = OverlayCanvas.Bounds.Height;
         if (pageW <= 0 || pageH <= 0 || cw <= 0 || ch <= 0)
             return;
-        double scale = Math.Min(cw / pageW, ch / pageH);
-        double ox = (cw - pageW * scale) / 2, oy = (ch - pageH * scale) / 2;
+        double scale = _vp.Scale;
+        double ox = _vp.OffsetX, oy = _vp.OffsetY;
 
         foreach (var item in vm.TypesetBlocks)
         {

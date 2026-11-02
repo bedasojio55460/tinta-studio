@@ -13,6 +13,14 @@
                     <Button x:Name="ViewerOpenFile" Classes="tool" Content="Buka Berkas…" />
                     <Button x:Name="ViewerOpenFolder" Classes="tool" Content="Buka Folder…" />
                     <Button x:Name="ViewerGoDetect" Classes="tool" Content="Deteksi &amp; OCR" />
+                    <Button x:Name="ViewerSplitButton" Classes="tool"
+                            Content="Potong Jadi Halaman Pendek"
+                            IsVisible="{Binding CanSplitCurrentPage}"
+                            ToolTip.Tip="Potong halaman panjang ini di celah antar panel menjadi halaman-halaman pendek (bisa disambung lagi)" />
+                    <Button x:Name="ViewerRejoinButton" Classes="tool"
+                            Content="Sambung Lagi"
+                            IsVisible="{Binding IsSplitSlicePage}"
+                            ToolTip.Tip="Batalkan pemotongan: potongan digabung kembali ke halaman induk, blok &amp; suntingan ikut dipetakan balik" />
                 </StackPanel>
                 <TextBlock Grid.Column="1" Text="{Binding ChapterTitle}"
                            HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -39,7 +47,33 @@
                 </DockPanel>
             </Border>
             <Border Grid.Column="1" Background="#0C0D10" Margin="12,0,0,0" CornerRadius="7">
-                <Image Source="{Binding CurrentPageBitmap}" Stretch="Uniform" Margin="10" />
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Background="#101216" Padding="8,5"
+                            CornerRadius="7,7,0,0">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Button x:Name="ZoomFitButton" Classes="tool" Content="Pas Layar" />
+                                <Button x:Name="Zoom100Button" Classes="tool" Content="100%" />
+                                <TextBlock x:Name="ZoomPercentText" Text="—"
+                                           VerticalAlignment="Center" FontSize="12"
+                                           MinWidth="46" TextAlignment="Center" />
+                                <TextBlock Text="Roda mouse: zoom di kursor • seret: geser"
+                                           Foreground="#8A939E" FontSize="11"
+                                           VerticalAlignment="Center" Margin="8,0,0,0" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" Text="{Binding SplitPageInfo}"
+                                       Foreground="#2DD4BF" FontSize="11"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Right" />
+                        </Grid>
+                    </Border>
+                    <Grid x:Name="StageGrid" Margin="10" ClipToBounds="True">
+                        <Canvas x:Name="StageCanvas">
+                            <Image x:Name="PageImage" Source="{Binding CurrentPageBitmap}"
+                                   Stretch="Fill" />
+                        </Canvas>
+                    </Grid>
+                </DockPanel>
             </Border>
         </Grid>
     </DockPanel>

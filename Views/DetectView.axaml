@@ -56,13 +56,34 @@
                 </DockPanel>
             </Border>
 
-            <!-- Kanvas halaman + overlay kotak blok -->
+            <!-- Kanvas halaman + overlay kotak blok + bar zoom (v0.7.14) -->
             <Border Grid.Column="1" Background="#0C0D10" Margin="12,0" CornerRadius="7">
-                <Grid x:Name="StageGrid" Margin="10">
-                    <Image x:Name="PageImage" Source="{Binding CurrentPageBitmap}"
-                           Stretch="Uniform" />
-                    <Canvas x:Name="OverlayCanvas" Background="Transparent" />
-                </Grid>
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Background="#101216" Padding="8,5"
+                            CornerRadius="7,7,0,0">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Button x:Name="ZoomFitButton" Classes="tool" Content="Pas Layar" />
+                            <Button x:Name="Zoom100Button" Classes="tool" Content="100%" />
+                            <TextBlock x:Name="ZoomPercentText" Text="—"
+                                       VerticalAlignment="Center" FontSize="12"
+                                       MinWidth="46" TextAlignment="Center" />
+                            <Button x:Name="ZoomBlockPrevButton" Classes="tool" Content="&#x276E; Blok"
+                                    ToolTip.Tip="Blok sebelumnya, lalu zoom ke blok itu" />
+                            <Button x:Name="ZoomBlockNextButton" Classes="tool" Content="Blok &#x276F;"
+                                    ToolTip.Tip="Blok berikutnya, lalu zoom ke blok itu" />
+                            <TextBlock Text="Roda mouse: zoom di kursor • seret: geser • klik blok di daftar: zoom ke blok"
+                                       Foreground="#8A939E" FontSize="11"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </StackPanel>
+                    </Border>
+                    <Grid x:Name="StageGrid" Margin="10" ClipToBounds="True">
+                        <Canvas x:Name="StageCanvas">
+                            <Image x:Name="PageImage" Source="{Binding CurrentPageBitmap}"
+                                   Stretch="Fill" />
+                        </Canvas>
+                        <Canvas x:Name="OverlayCanvas" Background="Transparent" />
+                    </Grid>
+                </DockPanel>
             </Border>
 
             <!-- Panel kanan: model, daftar blok, editor teks -->
@@ -101,7 +122,7 @@
 
                     <StackPanel Spacing="6">
                         <TextBlock Classes="section" Text="{Binding BlocksHeader}" />
-                        <ListBox ItemsSource="{Binding Blocks}"
+                        <ListBox x:Name="BlockList" ItemsSource="{Binding Blocks}"
                                  SelectedItem="{Binding SelectedBlock}"
                                  Height="216" Background="#17191F">
                             <ListBox.ItemTemplate>

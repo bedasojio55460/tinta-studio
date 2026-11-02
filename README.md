@@ -11,6 +11,50 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.7.14 — Halaman Panjang: deteksi berpetak, potong halaman & paket zoom
+
+Tiga perbaikan untuk bab webtoon strip panjang (laporan pemilik:
+halaman 900×15.412 hanya menghasilkan 4 blok sampah karena
+detektor me-resize seluruh halaman ke 640×640):
+
+- **Deteksi berpetak**: halaman dengan rasio tinggi/lebar > 2
+  dipotong jadi petak vertikal bertumpang-tindih (tinggi ±1,25×
+  lebar, overlap 20%), model jalan per petak, kotak dipetakan
+  kembali + digabung (IoU ≥ 0,5 sekelas). Halaman biasa lewat
+  jalur lama persis. Bukti pada berkas asli pemilik: halaman 003
+  **4 blok → 10 blok** bicara sungguhan ("I CAN DO THIS..!",
+  "DO YOU NEED SOMETHING FROM ME?", …; skor deteksi 0,38–0,43 →
+  0,87–0,94), halaman 004 **7 → 15 blok**. Biaya jujur: deteksi
+  murni halaman 003 di VM ini 2,0 dtk → 22,5 dtk (17 petak).
+- **Potong Jadi Halaman Pendek** (tombol di Penampil, hanya untuk
+  halaman tinggi): aksi eksplisit pengguna — titik potong dicari
+  di celah minim tinta dekat sasaran ±1.600 px (jatuh ke potongan
+  persis bila jendela ±400 px tanpa celah). Potongan jadi halaman
+  normal proyek; provenans (induk + offset) tersimpan di skema
+  proyek **v7** (berkas v1–v6 tetap termuat). **Sambung Lagi**
+  membatalkan: blok/suntingan potongan dipetakan balik ke
+  koordinat induk. **Ekspor** menyediakan pilihan menyambung
+  potongan jadi strip utuh persis dimensi aslinya. Bukti berkas
+  asli: 003 → 10 potongan (total tepat 15.412 px; 6/9 baris
+  potong berdensitas 0,0000; 3 baris fallback persis menembus
+  karya panel gelap — tidak satu pun memotong blok teks
+  terdeteksi); ekspor tersambung → **900×15.412 persis**;
+  20 → 29 → 20 halaman pada potong/sambung.
+- **Paket zoom** di Typesetting, Deteksi & OCR, dan Penampil
+  (kontrol kanvas yang sama): roda mouse berpusat di kursor,
+  seret untuk geser, Pas Layar / 100% + indikator persen, dan
+  zoom-ke-blok (klik blok di daftar atau tombol Blok ‹ ›; tinggi
+  blok ≈ 65% viewport). Matematika transformasi murni
+  (`PageViewport`) + teruji; koordinat blok tidak berubah.
+  Halaman Bersihkan belum ikut (kanvasnya berpola lain).
+- Tes: **183 total — 182 lolos, 0 gagal, 1 skip**
+  (`tmp/xunit-results-v0714.xml`; baseline v0.7.13: 158.
+  Berkas tes baru: TiledDetectTests 5, ViewportTests 8,
+  PageSplitTests 12). Exe win-x64 single-file
+  **124.940.881 byte** PE32+ GUI.
+
+Di bawah ini catatan v0.7.13.
+
 ## Status: v0.7.13 — Lokasi Data & Model bisa dipindah + LM Studio setara Ollama
 
 Data aplikasi & model OCR kini bisa tinggal di folder mana pun,

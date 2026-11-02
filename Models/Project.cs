@@ -27,9 +27,13 @@ public sealed class TintaProject
     /// latar inpaint) + pilihan garis tepi per sapuan inpaint;
     /// berkas lama tanpa bidang ini dimuat sebagai sapuan
     /// cat/pulihkan menurut Erased — kompatibel penuh.
+    /// v7 (v0.7.14): bab memuat provenans pemotongan halaman
+    /// panjang (PageSplits: halaman induk + offset/tinggi tiap
+    /// potongan) — dasar aksi Sambung Lagi dan ekspor tersambung.
+    /// Berkas v1–v6 tidak memuat bidang ini → tanpa potongan.
     /// CATATAN: API key TIDAK PERNAH disimpan di berkas proyek —
     /// key hanya hidup di ~/.config/tinta-studio/keys.json (0600).</summary>
-    public const int CurrentVersion = 6;
+    public const int CurrentVersion = 7;
 
     public string Format { get; set; } = FormatMarker;
     public int Version { get; set; } = CurrentVersion;
@@ -65,6 +69,7 @@ public sealed class TintaProject
         foreach (var ch in project.Chapters)
         {
             ch.Pages ??= new List<ProjectPage>();
+            ch.PageSplits ??= new List<PageSplitGroup>();
             foreach (var page in ch.Pages)
             {
                 page.Blocks ??= new List<TextBlock>();
@@ -87,6 +92,14 @@ public sealed class ProjectChapter
     /// <summary>Hasil analisis per halaman (Tahap 2+). Berkas v1 tidak
     /// memuat ini → daftar kosong; aman dimuat.</summary>
     public List<ProjectPage> Pages { get; set; } = new();
+
+    /// <summary>Provenans pemotongan halaman panjang (skema v7):
+    /// satu grup per halaman induk yang dipotong pengguna. Indeks
+    /// di sini adalah indeks halaman ASLI hasil impor (sebelum
+    /// pemotongan); daftar halaman efektif (yang tampil) diturunkan
+    /// darinya — lihat PageSplitMath.ExpandLayout. Kosong = tidak
+    /// ada halaman yang dipotong.</summary>
+    public List<PageSplitGroup> PageSplits { get; set; } = new();
 
     /// <summary>Ambil/buat entri halaman untuk indeks tertentu.</summary>
     public ProjectPage PageAt(int index)
@@ -123,6 +136,29 @@ public sealed class ProjectPage
     /// <summary>Penghitung urutan untuk operasi bersih &amp; sapuan
     /// (dasar fitur Urungkan: yang Seq-nya terbesar dibatalkan dulu).</summary>
     public int CleanSeq { get; set; }
+}
+
+/// <summary>Satu grup pemotongan: halaman induk (indeks asli
+/// hasil impor) beserta potongan-potongannya berurutan dari atas.</summary>
+public sealed class PageSplitGroup
+{
+    /// <summary>Indeks halaman induk dalam urutan impor asli.</summary>
+    public int ParentIndex { get; set; }
+
+    /// <summary>Potongan berurutan dari atas ke bawah; gabungan
+    /// tinggi mereka = tinggi halaman induk, offset pertama 0.</summary>
+    public List<PageSlice> Slices { get; set; } = new();
+}
+
+/// <summary>Satu potongan halaman panjang: posisi vertikalnya di
+/// halaman induk + tingginya (lebar selalu selebar induk).</summary>
+public sealed class PageSlice
+{
+    /// <summary>Offset Y potongan ini di halaman induk (piksel).</summary>
+    public int OffsetY { get; set; }
+
+    /// <summary>Tinggi potongan (piksel).</summary>
+    public int Height { get; set; }
 }
 
 /// <summary>Cara membersihkan teks sebuah blok.</summary>

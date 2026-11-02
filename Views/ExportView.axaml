@@ -80,6 +80,14 @@
                         </Grid>
                     </StackPanel>
 
+                    <StackPanel Spacing="6" IsVisible="{Binding HasSplitPages}">
+                        <TextBlock Classes="section" Text="HALAMAN YANG DIPOTONG" />
+                        <CheckBox IsChecked="{Binding ExportStitchSplits}"
+                                  Content="Sambung potongan kembali menjadi strip utuh saat ekspor" />
+                        <TextBlock Text="Bab ini punya halaman panjang yang dipotong. Tersambung = bentuk aslinya pulih persis (satu strip per halaman induk). Tidak dicentang = tiap potongan diekspor sebagai halaman sendiri."
+                                   Foreground="#8A939E" FontSize="11" TextWrapping="Wrap" />
+                    </StackPanel>
+
                     <StackPanel Spacing="6">
                         <TextBlock Classes="section" Text="FOLDER TUJUAN" />
                         <Grid ColumnDefinitions="*,Auto">
