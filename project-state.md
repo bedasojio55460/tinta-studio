@@ -1498,3 +1498,40 @@
     (3) halaman bersih tersimpan yang basi (ops di-undo semua)
     menekan peringatan sesuai rumus brief — render tetap
     memakai bitmap tersimpan itu, konsisten dengan ceknya.
+
+- Panduan v0.7.16 (2026-11-02, docs saja — aplikasi tidak berubah):
+  PDF `docs/Panduan-Tinta-Studio.pdf` ditulis ulang penuh dari
+  sumber HTML panduan — 27 halaman A4, 2,6 MB, semua tangkapan
+  layar baru dari build v0.7.16. Isi: urutan kerja resmi
+  Deteksi → Bersihkan → Terjemahan → Typesetting → Ekspor
+  ditegaskan di sampul, Tentang, dan Bab 4 (Solid = intip cepat,
+  Inpaint = hasil akhir); Bab 2 menambah deteksi ulang yang aman
+  (terjemahan/typeset/bersih dipertahankan via pencocokan kotak +
+  dialog konfirmasi), bawaan bahasa Otomatis yang diingat,
+  catatan blok ganda menyatu + blok sampah tersaring, pegangan
+  tarik 8 arah, dan sub-bab halaman strip webtoon (deteksi
+  berpetak 37 blok terbukti, paket zoom, Potong Jadi Halaman
+  Pendek + Sambung Lagi); Bab 4 model terkini (Groq
+  openai/gpt-oss-120b, OpenRouter google/gemma-4-31b-it:free,
+  Gemini gemini-2.5-flash; model pensiun terganti otomatis, model
+  kustom utuh) + sub-bab terjemahan lokal (Instal Instan Ollama,
+  qwen2.5:7b ±4,7 GB menutup JA/KO/ZH/EN, alternatif 3b/14b,
+  kartu LM Studio setara) — isi Panduan Ollama terpisah dilipat
+  masuk alur utama; Bab 5 peringatan "Halaman ini belum
+  dibersihkan" + mode review tombol Kotak; Bab 9 baru: Lokasi
+  Data & Model (pindah drive tanpa unduh ulang, verifikasi
+  SHA-256, Kembalikan ke Bawaan, penawaran sekali yang tidak
+  mengunci, lokasi model Ollama berlaku sesudah restart dari
+  tray) + Hapus Bersih (daftar folder + ukuran langsung dari
+  disk, konfirmasi kedua, penanda dihapus terakhir). Video
+  panduan dibangun ulang penuh 12 segmen (narasi id-ID produksi
+  sama seperti sebelumnya; aset di `panduan-video/` memang di
+  luar repo): `panduan-video/Tinta-Studio-Panduan.mp4` 595 dtk
+  (9:55), 12,9 MB, 1280x720 — segmen: pembuka+urutan resmi,
+  Pustaka/Penampil+zoom, Deteksi+deteksi ulang aman, webtoon,
+  Bersihkan Solid vs Inpaint, Terjemahan awan+Ambil Key+migrasi,
+  lokal Ollama/LM Studio, Typesetting+pegangan 8 arah,
+  peringatan bersih+mode review, Lokasi Data & Hapus Bersih,
+  Ekspor, penutup. Tidak ada lagi teks/footer v0.7.7/v0.7.9 di
+  PDF maupun video (terverifikasi grep sumber + teks PDF +
+  frame video).
