@@ -15,6 +15,13 @@ namespace TintaStudio.Views;
 /// terpilih — pratinjau seret hanya menggeser bingkai di overlay;
 /// Dx/Dy baru disimpan ke proyek saat pointer dilepas.
 ///
+/// Pegangan tarik (v0.7.15): kotak blok terpilih menampilkan 8
+/// pegangan (sudut + titik tengah tepi); menariknya mengubah
+/// ukuran kotak render — Dx/Dy/Dw/Dh baru disimpan saat pointer
+/// dilepas (CommitBlockResize). Sebelumnya kotak cuma bisa
+/// digeser dan ukuran hanya bisa diubah lewat angka di panel
+/// (keluhan pemilik).
+///
 /// Zoom (v0.7.14): roda mouse berpusat di kursor, seret area
 /// kosong menggeser tampilan, tombol Pas Layar / 100% + indikator
 /// persen, dan zoom-ke-blok (klik blok di daftar atau tombol
@@ -36,6 +43,39 @@ public partial class TypesetView : UserControl
     private int _dragCurX, _dragCurY;
     private int _dragStartDx, _dragStartDy;
     private bool _dragging;
+
+    // Keadaan tarik pegangan / ubah ukuran (v0.7.15, piksel halaman):
+    // rect awal saat tarik dimulai + rect pratinjau selama tarik.
+    private TypesetBlockItemViewModel? _resizeItem;
+    private BoxHandle _resizeHandle = BoxHandle.None;
+    private int _resizeStartX, _resizeStartY;
+    private int _rsL, _rsT, _rsW, _rsH;
+    private int _rcL, _rcT, _rcW, _rcH;
+    private bool _resizing;
+
+    private static readonly Cursor CursorWE = new(StandardCursorType.SizeWestEast);
+    private static readonly Cursor CursorNS = new(StandardCursorType.SizeNorthSouth);
+    private static readonly Cursor CursorTL = new(StandardCursorType.TopLeftCorner);
+    private static readonly Cursor CursorTR = new(StandardCursorType.TopRightCorner);
+    private static readonly Cursor CursorBL = new(StandardCursorType.BottomLeftCorner);
+    private static readonly Cursor CursorBR = new(StandardCursorType.BottomRightCorner);
+    private static readonly Cursor CursorMove = new(StandardCursorType.SizeAll);
+
+    /// <summary>Toleransi tangkap pegangan dalam piksel halaman
+    /// (±8 px layar pada zoom saat ini).</summary>
+    private double HandleTolPage() => _vp.Scale > 0 ? 8.0 / _vp.Scale : 8.0;
+
+    internal static Cursor CursorFor(BoxHandle h) => h switch
+    {
+        BoxHandle.Left or BoxHandle.Right => CursorWE,
+        BoxHandle.Top or BoxHandle.Bottom => CursorNS,
+        BoxHandle.TopLeft => CursorTL,
+        BoxHandle.TopRight => CursorTR,
+        BoxHandle.BottomLeft => CursorBL,
+        BoxHandle.BottomRight => CursorBR,
+        BoxHandle.Move => CursorMove,
+        _ => Cursor.Default,
+    };
 
     // Keadaan zoom/pan (v0.7.14).
     private PageViewport _vp = new();
@@ -206,6 +246,33 @@ public partial class TypesetView : UserControl
         var pt = ToPagePoint(pos);
         if (pt is null)
             return;
+        // Pegangan kotak terpilih didahulukan dari hit-test badan:
+        // tarik sudut/tepi = ubah ukuran.
+        if (vm.SelectedTypesetBlock is { } sel)
+        {
+            var selBox = TypesetService.RenderBox(
+                sel.Block, TypesetService.EffectiveStyle(sel.Block));
+            var handle = BoxEdit.HitHandle(pt.Value.X, pt.Value.Y,
+                selBox.Left, selBox.Top, selBox.Width, selBox.Height,
+                HandleTolPage());
+            if (handle is not BoxHandle.None and not BoxHandle.Move)
+            {
+                _resizing = true;
+                _resizeItem = sel;
+                _resizeHandle = handle;
+                _resizeStartX = pt.Value.X;
+                _resizeStartY = pt.Value.Y;
+                _rsL = _rcL = selBox.Left;
+                _rsT = _rcT = selBox.Top;
+                _rsW = _rcW = selBox.Width;
+                _rsH = _rcH = selBox.Height;
+                StageGrid.Cursor = CursorFor(handle);
+                e.Pointer.Capture(StageGrid);
+                e.Handled = true;
+                RebuildOverlay();
+                return;
+            }
+        }
         var hit = vm.HitTestTypesetBlock(pt.Value.X, pt.Value.Y);
         if (hit is null)
         {
@@ -231,6 +298,18 @@ public partial class TypesetView : UserControl
 
     private void OnStagePointerMoved(object? sender, PointerEventArgs e)
     {
+        if (_resizing && _resizeItem is not null)
+        {
+            var rpt = ToPagePoint(e.GetPosition(StageGrid));
+            if (rpt is null)
+                return;
+            var r = BoxEdit.ApplyDrag(_resizeHandle,
+                _rsL, _rsT, _rsW, _rsH,
+                _resizeStartX, _resizeStartY, rpt.Value.X, rpt.Value.Y);
+            _rcL = r.X; _rcT = r.Y; _rcW = r.W; _rcH = r.H;
+            RebuildOverlay();
+            return;
+        }
         if (_panning)
         {
             if (StageDims() is not { } d)
@@ -242,7 +321,10 @@ public partial class TypesetView : UserControl
             return;
         }
         if (!_dragging || _dragItem is null)
+        {
+            UpdateHoverCursor(e);
             return;
+        }
         var pt = ToPagePoint(e.GetPosition(StageGrid));
         if (pt is null)
             return;
@@ -251,8 +333,42 @@ public partial class TypesetView : UserControl
         RebuildOverlay();
     }
 
+    /// <summary>Kursor mengikuti pegangan/badan kotak terpilih
+    /// saat pointer melayang (tanpa seret).</summary>
+    private void UpdateHoverCursor(PointerEventArgs e)
+    {
+        var vm = _vm;
+        if (vm?.SelectedTypesetBlock is not { } sel)
+        {
+            StageGrid.Cursor = Cursor.Default;
+            return;
+        }
+        var pt = ToPagePoint(e.GetPosition(StageGrid));
+        if (pt is null)
+        {
+            StageGrid.Cursor = Cursor.Default;
+            return;
+        }
+        var box = TypesetService.RenderBox(
+            sel.Block, TypesetService.EffectiveStyle(sel.Block));
+        StageGrid.Cursor = CursorFor(BoxEdit.HitHandle(
+            pt.Value.X, pt.Value.Y, box.Left, box.Top, box.Width, box.Height,
+            HandleTolPage()));
+    }
+
     private void OnStagePointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (_resizing && _resizeItem is not null && _vm is not null)
+        {
+            _resizing = false;
+            var resizeItem = _resizeItem;
+            _resizeItem = null;
+            StageGrid.Cursor = Cursor.Default;
+            if (_rcL != _rsL || _rcT != _rsT || _rcW != _rsW || _rcH != _rsH)
+                _vm.CommitBlockResize(resizeItem, _rcL, _rcT, _rcW, _rcH);
+            RebuildOverlay();
+            return;
+        }
         if (_panning)
         {
             _panning = false;
@@ -295,18 +411,50 @@ public partial class TypesetView : UserControl
                 shiftX = _dragCurX - _dragStartX;
                 shiftY = _dragCurY - _dragStartY;
             }
+            // Selama tarik pegangan, kotak terpilih digambar pada
+            // rect pratinjau hasil BoxEdit.ApplyDrag.
+            int drawL = box.Left + shiftX, drawT = box.Top + shiftY;
+            int drawW = box.Width, drawH = box.Height;
+            if (selected && _resizing && ReferenceEquals(item, _resizeItem))
+            {
+                drawL = _rcL; drawT = _rcT; drawW = _rcW; drawH = _rcH;
+            }
             var rect = new Border
             {
                 BorderBrush = selected ? SelectedBrush : FrameBrush,
                 BorderThickness = new Thickness(selected ? 2.5 : 1.25),
                 Background = FaintFill,
                 CornerRadius = new CornerRadius(3),
-                Width = Math.Max(6, box.Width * scale),
-                Height = Math.Max(6, box.Height * scale),
+                Width = Math.Max(6, drawW * scale),
+                Height = Math.Max(6, drawH * scale),
             };
-            Canvas.SetLeft(rect, ox + (box.Left + shiftX) * scale);
-            Canvas.SetTop(rect, oy + (box.Top + shiftY) * scale);
+            Canvas.SetLeft(rect, ox + drawL * scale);
+            Canvas.SetTop(rect, oy + drawT * scale);
             OverlayCanvas.Children.Add(rect);
+
+            if (selected)
+            {
+                // Pegangan tarik (v0.7.15): 8 kotak kecil di sudut +
+                // titik tengah tepi kotak terpilih, ukuran layar
+                // tetap ±8 px pada zoom berapa pun.
+                foreach (var (fx, fy) in BoxEdit.HandleAnchors)
+                {
+                    var handleSq = new Border
+                    {
+                        Background = Brushes.White,
+                        BorderBrush = SelectedBrush,
+                        BorderThickness = new Thickness(1.5),
+                        CornerRadius = new CornerRadius(2),
+                        Width = 8,
+                        Height = 8,
+                    };
+                    Canvas.SetLeft(handleSq,
+                        ox + (drawL + fx * drawW) * scale - 4);
+                    Canvas.SetTop(handleSq,
+                        oy + (drawT + fy * drawH) * scale - 4);
+                    OverlayCanvas.Children.Add(handleSq);
+                }
+            }
 
             if (selected)
             {
@@ -323,8 +471,8 @@ public partial class TypesetView : UserControl
                         FontWeight = FontWeight.Bold,
                     },
                 };
-                Canvas.SetLeft(badge, Math.Max(0, ox + (box.Left + shiftX) * scale - 2));
-                Canvas.SetTop(badge, Math.Max(0, oy + (box.Top + shiftY) * scale - 16));
+                Canvas.SetLeft(badge, Math.Max(0, ox + drawL * scale - 2));
+                Canvas.SetTop(badge, Math.Max(0, oy + drawT * scale - 16));
                 OverlayCanvas.Children.Add(badge);
             }
         }

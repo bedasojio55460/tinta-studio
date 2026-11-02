@@ -178,6 +178,8 @@ internal static class Program
                 CancellationToken.None).GetAwaiter().GetResult();
             ProjectStore.Save(project, chapter.SourcePath);
             Console.WriteLine(
+                $"Blok sampah terbuang saringan: {pipeline.JunkBlocksDropped}");
+            Console.WriteLine(
                 $"OCR selesai: {chapter.Title} — bahasa {lang.Code}, " +
                 $"{chapter.Pages.Count} halaman");
             foreach (var page in projectChapter.Pages)

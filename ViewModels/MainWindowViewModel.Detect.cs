@@ -153,6 +153,23 @@ public sealed partial class MainWindowViewModel
 
     public string BlocksHeader => $"BLOK TEKS — {Blocks.Count}";
 
+    /// <summary>Seret kotak di kanvas Deteksi selesai (v0.7.15 —
+    /// pindah badan kotak / tarik pegangan ubah ukuran): simpan
+    /// geometri baru blok ke proyek. Tanpa perubahan = tanpa
+    /// simpan.</summary>
+    public void CommitBlockGeometry(TextBlock block, int x, int y, int w, int h)
+    {
+        if (block.X == x && block.Y == y && block.Width == w && block.Height == h)
+            return;
+        block.X = x;
+        block.Y = y;
+        block.Width = w;
+        block.Height = h;
+        SaveProject();
+        Raise(nameof(SelectedBlockMeta));
+        Raise(nameof(ContextInfo));
+    }
+
     public void RefreshModelStatuses()
     {
         if (ModelStatuses.Count == 0)

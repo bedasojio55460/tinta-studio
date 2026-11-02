@@ -58,8 +58,47 @@ public sealed class DetectOcrPipeline : IDisposable
             return AnalyzePageAuto(page, boxes, ct);
 
         var blocks = RecognizeBoxes(page, boxes, lang, ct);
-        return SortReadingOrder(blocks, lang);
+        return SortReadingOrder(ApplyJunkFilter(blocks), lang);
     }
+
+    /// <summary>Jumlah blok yang dibuang saringan sampah oleh
+    /// instans ini sejauh ini (diagnostik; ditampilkan CLI).</summary>
+    internal int JunkBlocksDropped { get; private set; }
+
+    private List<TextBlock> ApplyJunkFilter(List<TextBlock> blocks)
+    {
+        var kept = DropJunkBlocks(blocks);
+        JunkBlocksDropped += blocks.Count - kept.Count;
+        return kept;
+    }
+
+    /// <summary>
+    /// Saringan blok SAMPAH pasca-OCR (v0.7.15, keluhan pemilik:
+    /// satu blok isi "T" berkeyakinan 39%). Kalibrasi pada bab
+    /// strip asli pemilik membuktikan hampir semua blok berteks
+    /// 1–2 huruf di bab itu sebenarnya bubble ASLI yang OCR-nya
+    /// gagal total (pita garis menyatu — diperbaiki di Ocr.cs;
+    /// sesudahnya blok yang sama terbaca penuh berkeyakinan
+    /// 0,9+). Jadi saringan ini SENGAJA sempit — hanya membuang
+    /// profil yang tidak mungkin teks asli: hasil baca ≤ 2 huruf
+    /// DENGAN keyakinan &lt; 0,5 dari kotak yang TIDAK kecil
+    /// (≥150×80 px — kotak sebesar itu memuat jauh lebih banyak
+    /// teks bila memang berisi teks). Teks pendek asli selalu di
+    /// kotak kecil dan/atau terbaca yakin ("EH?" 0,78, "!" 0,97,
+    /// "WHOA?!" 0,99 pada bab yang sama) — tidak tersentuh.
+    /// </summary>
+    internal static bool IsJunkBlock(TextBlock b)
+    {
+        var flat = b.Text.Replace("\n", "").Replace(" ", "");
+        return flat.Length <= 2
+            && b.Confidence < 0.5
+            && b.Width >= 150
+            && b.Height >= 80;
+    }
+
+    /// <summary>Buang blok sampah dari daftar blok satu halaman.</summary>
+    internal static List<TextBlock> DropJunkBlocks(List<TextBlock> blocks) =>
+        blocks.Where(b => !IsJunkBlock(b)).ToList();
 
     /// <summary>
     /// Kandidat mode Otomatis: bahasa yang model rec-nya terpasang.
@@ -125,7 +164,7 @@ public sealed class DetectOcrPipeline : IDisposable
                 continue;
             blocks.Add(ToBlock(box, result, used));
         }
-        return SortReadingOrder(blocks, pageLang);
+        return SortReadingOrder(ApplyJunkFilter(blocks), pageLang);
     }
 
     /// <summary>
@@ -209,26 +248,54 @@ public sealed class DetectOcrPipeline : IDisposable
         };
 
     /// <summary>
-    /// Buang kotak duplikat LINTAS kelas teks: wilayah yang sama
-    /// bisa dilaporkan detektor dua kali — sekali sebagai
-    /// text_bubble dan sekali sebagai text_free — dengan kotak
-    /// nyaris identik (NMS di detektor hanya menekan duplikat
-    /// sekelas). Ditemukan pada uji halaman ilustrasi asli
-    /// 2026-10-27: dua pasang kotak identik persis lolos jadi blok
-    /// ganda. Yang dipertahankan: skor deteksi tertinggi. Ambang
-    /// IoU 0,85: dua kotak teks berbeda yang sah tidak pernah
-    /// bertumpang sejauh itu.
+    /// Buang kotak duplikat wilayah yang sama. Dua aturan:
+    /// (1) LINTAS kelas teks (v0.6.1): wilayah yang sama bisa
+    /// dilaporkan detektor dua kali — sekali sebagai text_bubble
+    /// dan sekali sebagai text_free — dengan kotak nyaris identik
+    /// (NMS di detektor hanya menekan duplikat sekelas); ambang
+    /// IoU 0,85. (2) TUMPUK SEBAGIAN BESAR (v0.7.15, keluhan
+    /// pemilik pada bab strip asli): satu bubble yang sama kena
+    /// dua kotak yang tumpang tindih besar tapi tingginya beda —
+    /// IoU-nya di bawah 0,85 sehingga lolos aturan lama dan bubble
+    /// terbaca dua kali sebagai dua blok tumpang. Kini kotak yang
+    /// irisannya ≥ 60% dari luas kotak yang LEBIH KECIL dianggap
+    /// duplikat wilayah yang sama. Yang dipertahankan: skor
+    /// deteksi tertinggi; seri → kotak lebih besar. Dua bubble
+    /// bersebelahan yang hanya bersinggungan tepi irisannya ~0 —
+    /// tidak pernah mencapai 60% luas kotak terkecil — jadi tidak
+    /// ikut tergabung.
     /// </summary>
     internal static List<DetectedBox> DedupeBoxes(List<DetectedBox> boxes)
     {
         var kept = new List<DetectedBox>();
-        foreach (var b in boxes.OrderByDescending(b => b.Score))
+        foreach (var b in boxes
+            .OrderByDescending(b => b.Score)
+            .ThenByDescending(b => (long)b.Width * b.Height))
         {
-            if (kept.Any(k => TextDetector.Iou(k, b) > 0.85))
+            if (kept.Any(k => IsDuplicateBox(k, b)))
                 continue;
             kept.Add(b);
         }
         return kept;
+    }
+
+    /// <summary>True bila dua kotak adalah duplikat wilayah yang
+    /// sama menurut salah satu aturan <see cref="DedupeBoxes"/>.</summary>
+    internal static bool IsDuplicateBox(DetectedBox a, DetectedBox b) =>
+        TextDetector.Iou(a, b) > 0.85
+        || OverlapOfSmaller(a, b) >= 0.6;
+
+    /// <summary>Luas irisan dua kotak dibagi luas kotak yang lebih
+    /// kecil (1,0 = kotak kecil tertelan utuh oleh kotak lain).</summary>
+    internal static double OverlapOfSmaller(DetectedBox a, DetectedBox b)
+    {
+        int ix = Math.Max(0,
+            Math.Min(a.X + a.Width, b.X + b.Width) - Math.Max(a.X, b.X));
+        int iy = Math.Max(0,
+            Math.Min(a.Y + a.Height, b.Y + b.Height) - Math.Max(a.Y, b.Y));
+        long smaller = Math.Min(
+            (long)a.Width * a.Height, (long)b.Width * b.Height);
+        return smaller <= 0 ? 0 : (double)((long)ix * iy) / smaller;
     }
 
     /// <summary>

@@ -472,17 +472,149 @@ public sealed class DetectOcrTests
         // halaman asli 2026-10-27): hanya satu yang bertahan —
         // yang skornya tertinggi. Kotak berbeda yang sah dan
         // kotak yang hanya bertumpang sebagian tidak dibuang.
+        // Catatan v0.7.15: pasangan "bertumpang sebagian" di sini
+        // digeser dari (520,120) ke (560,160) — irisan pasangan
+        // lama adalah 82% luas kotak terkecil, yang sejak aturan
+        // tumpuk v0.7.15 (irisan ≥60% luas terkecil = duplikat)
+        // memang tergolong duplikat wilayah; pasangan baru
+        // beririsan 51% — tetap tumpang besar, tetap dua kotak
+        // berbeda yang sah.
         var boxes = new List<DetectedBox>
         {
             new(100, 100, 200, 300, DetectedClass.TextBubble, 0.66),
             new(100, 100, 200, 300, DetectedClass.TextFree, 0.39),
             new(500, 100, 180, 260, DetectedClass.TextFree, 0.80),
-            new(520, 120, 180, 260, DetectedClass.TextBubble, 0.70),
+            new(560, 160, 180, 260, DetectedClass.TextBubble, 0.70),
         };
         var kept = DetectOcrPipeline.DedupeBoxes(boxes);
         Assert.Equal(3, kept.Count);
         var first = Assert.Single(kept, b => b.X == 100 && b.Y == 100);
         Assert.Equal(0.66, first.Score);
         Assert.Equal(DetectedClass.TextBubble, first.Class);
+    }
+
+    [Fact]
+    public void DedupeBoxes_MostlyContainedDuplicate_KeepsHighestScore()
+    {
+        // Replikasi kasus pemilik (bab strip asli, halaman 004):
+        // bubble yang sama kena dua kotak — satu utuh (267×172,
+        // skor 0,94) dan satu potongan atasnya saja (273×85, skor
+        // 0,85) yang 98% wilayahnya di dalam kotak pertama.
+        // IoU pasangan ini cuma 0,49 sehingga aturan lama (0,85)
+        // melewatkannya; aturan irisan ≥60% luas kotak terkecil
+        // menggabungkannya.
+        var boxes = new List<DetectedBox>
+        {
+            new(128, 1940, 273, 85, DetectedClass.TextBubble, 0.85),
+            new(131, 1939, 267, 172, DetectedClass.TextBubble, 0.94),
+            new(600, 3000, 200, 100, DetectedClass.TextFree, 0.70),
+        };
+        var kept = DetectOcrPipeline.DedupeBoxes(boxes);
+        Assert.Equal(2, kept.Count);
+        var survivor = Assert.Single(kept, b => b.Y == 1939);
+        Assert.Equal(0.94, survivor.Score);
+        Assert.Equal(172, survivor.Height);
+    }
+
+    [Fact]
+    public void DedupeBoxes_ContainedPair_TieScore_KeepsLarger()
+    {
+        // Skor seri pada pasangan tertelan: yang lebih besar
+        // dipertahankan (wilayah teksnya lebih lengkap).
+        var boxes = new List<DetectedBox>
+        {
+            new(110, 110, 100, 60, DetectedClass.TextFree, 0.80),
+            new(100, 100, 200, 120, DetectedClass.TextBubble, 0.80),
+        };
+        var kept = DetectOcrPipeline.DedupeBoxes(boxes);
+        var survivor = Assert.Single(kept);
+        Assert.Equal(200, survivor.Width);
+    }
+
+    [Fact]
+    public void DedupeBoxes_AdjacentBubbles_EdgeTouching_NotMerged()
+    {
+        // Dua bubble bersebelahan yang hanya bersinggungan tepi
+        // (irisan nol) atau bertumpang tipis (< 60% luas kotak
+        // terkecil) adalah dua teks berbeda — keduanya bertahan.
+        var boxes = new List<DetectedBox>
+        {
+            new(100, 100, 200, 150, DetectedClass.TextBubble, 0.90),
+            new(300, 100, 200, 150, DetectedClass.TextBubble, 0.88),
+            new(100, 400, 200, 150, DetectedClass.TextBubble, 0.86),
+            new(260, 400, 200, 150, DetectedClass.TextBubble, 0.84),
+        };
+        var kept = DetectOcrPipeline.DedupeBoxes(boxes);
+        Assert.Equal(4, kept.Count);
+    }
+
+    [Fact]
+    public void IsJunkBlock_OwnerProfile_Dropped()
+    {
+        // Profil keluhan pemilik persis: kotak besar (bubble utuh)
+        // yang hasil bacanya cuma "T" berkeyakinan 0,39.
+        var junk = new TextBlock
+        {
+            X = 358, Y = 477, Width = 428, Height = 187,
+            Text = "T", Confidence = 0.39, DetectionScore = 0.93,
+            Language = "en",
+        };
+        Assert.True(DetectOcrPipeline.IsJunkBlock(junk));
+        var twoChars = new TextBlock
+        {
+            X = 0, Y = 0, Width = 300, Height = 120,
+            Text = "A\nB", Confidence = 0.30, Language = "en",
+        };
+        Assert.True(DetectOcrPipeline.IsJunkBlock(twoChars));
+    }
+
+    [Fact]
+    public void IsJunkBlock_RealShortText_Survives()
+    {
+        // Teks pendek ASLI dari bab yang sama tidak boleh ikut
+        // terbuang: tanda seru satu huruf tapi yakin & kotak kecil,
+        // seruan pendek berkeyakinan sedang, dan blok panjang
+        // berkeyakinan rendah (bubble sulit, bukan sampah).
+        var bang = new TextBlock
+        {
+            X = 393, Y = 12265, Width = 111, Height = 120,
+            Text = "!", Confidence = 0.97, Language = "en",
+        };
+        Assert.False(DetectOcrPipeline.IsJunkBlock(bang));
+        var eh = new TextBlock
+        {
+            X = 0, Y = 0, Width = 90, Height = 50,
+            Text = "EH", Confidence = 0.42, Language = "en",
+        };
+        Assert.False(DetectOcrPipeline.IsJunkBlock(eh));
+        var confident = new TextBlock
+        {
+            X = 0, Y = 0, Width = 428, Height = 187,
+            Text = "T", Confidence = 0.62, Language = "en",
+        };
+        Assert.False(DetectOcrPipeline.IsJunkBlock(confident));
+        var longLowConf = new TextBlock
+        {
+            X = 0, Y = 0, Width = 486, Height = 260,
+            Text = "AND DO / ONLY WHAT YOU'RE / TOLD.",
+            Confidence = 0.30, Language = "en",
+        };
+        Assert.False(DetectOcrPipeline.IsJunkBlock(longLowConf));
+    }
+
+    [Fact]
+    public void OverlapOfSmaller_MeasuresContainment()
+    {
+        var big = new DetectedBox(100, 100, 200, 200, DetectedClass.TextBubble, 0.9);
+        var inside = new DetectedBox(120, 120, 100, 100, DetectedClass.TextFree, 0.8);
+        Assert.Equal(1.0, DetectOcrPipeline.OverlapOfSmaller(big, inside),
+            precision: 6);
+        var half = new DetectedBox(250, 100, 200, 200, DetectedClass.TextFree, 0.8);
+        // Irisan 50×200 = 10.000 dari luas kotak terkecil 40.000.
+        Assert.Equal(0.25, DetectOcrPipeline.OverlapOfSmaller(big, half),
+            precision: 6);
+        var apart = new DetectedBox(500, 500, 100, 100, DetectedClass.TextFree, 0.8);
+        Assert.Equal(0.0, DetectOcrPipeline.OverlapOfSmaller(big, apart),
+            precision: 6);
     }
 }

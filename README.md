@@ -11,6 +11,80 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.7.15 — Pegangan tarik kotak, dedupe tumpuk, saringan sampah & OCR Inggris diperbaiki
+
+Empat keluhan pemilik atas bab strip asli (The Grand Duke of the
+North's Crazy Son-in-Law Ch. 0) diperbaiki & dibuktikan pada
+berkas yang sama:
+
+- **Pegangan tarik (resize handles)**: kotak blok terpilih kini
+  punya 8 pegangan (4 sudut + 4 tepi) di kanvas **Typesetting**
+  DAN **Deteksi & OCR** (sebelumnya kanvas Deteksi malah tak
+  bisa menyunting kotak sama sekali). Seret tepi/sudut mengubah
+  ukuran dengan pratinjau langsung, kursor berubah sesuai arah
+  tarik, ukuran minimum 16 px, tersimpan saat lepas (Typesetting
+  lewat delta Dx/Dy/Dw/Dh; Deteksi lewat bbox blok). Seret badan
+  kotak tetap memindah; klik kotak lain memilihnya. Matematika
+  hit-test + rect baru murni (`BoxEdit`) + teruji.
+- **Kotak ganda bertumpuk hilang**: aturan dedupe diperkuat —
+  selain IoU > 0,85 yang lama, dua kotak yang irisannya ≥ 60%
+  dari luas kotak yang lebih kecil dianggap wilayah yang sama
+  (pertahankan skor deteksi tertinggi; seri → yang lebih besar).
+  Pada bab asli: pasangan tumpuk ≥60% di hasil akhir turun dari
+  **16 pasang → 0**. Kasus pemilik (bubble "…EXACTLY AS MUCH
+  MANA AS YOU NEED" kena dua kotak) kini satu kotak utuh.
+- **Saringan blok sampah** (pasca-OCR, mode manual & Otomatis):
+  buang blok bila hasil baca ≤ 2 huruf DAN keyakinan < 0,5 DAN
+  kotak tidak kecil (≥150×80 px). Kalibrasi bab asli: profil ini
+  cocok dengan 10 blok sampah kode lama ("T" 0,39, "N" 0,37, …);
+  sesudah perbaikan OCR, 8 di antaranya sembuh jadi teks utuh,
+  1 kembali kosong (aturan lama), dan tepat **1 terbuang oleh
+  saringan** (hal. 18: kotak 699×226 terbaca "S" 0,41). Teks
+  pendek asli selamat semua ("!" 0,96, "TSK." 1,00, "SIR?" 1,00,
+  "HEH." 0,81 — kotak kecil dan/atau terbaca yakin).
+- **OCR Inggris jauh lebih baik** — akar masalahnya bukan model:
+  pemisah pita baris lama (celah minimum 6% tinggi potongan)
+  menyatukan bubble 4–5 baris jadi satu pita sehingga model
+  satu-baris mengembalikan sampah satu huruf. Rumus baru
+  `clamp(4% tinggi, 4, 8)` px (poros 8 px: celah dalam glyph
+  fixture Jepang terbesar 7 px; celah antarbaris nyata terkecil
+  8 px; terukur dari profil baris bab asli). Ditambah bantalan
+  putih sekeliling garis khusus rec Inggris. Tabel ukur pada
+  bubble asli halaman 7 (kebenaran visual di kanan):
+
+  | Bubble (hal. 7) | Lama | Baru (mobile + perbaikan) | Server + perbaikan |
+  |---|---|---|---|
+  | (126,150) "CALCULATE THE CONCENTRATION AS YOU STORE IT." | CALCLLATE / THE CONCENTRATION / AS YOU STORE IT. (0,97) | **CALCULATE / THE CONCENTRATION / AS YOU STORE IT. (0,98)** | CALCULATE / THE CONCENTRATION / aOITo (0,84) |
+  | (210,3724) "CALCULATE THE MANA CONCENTRATION IN ADVANCE, AND YOU CAN DO THINGS LIKE THIS TOO." | N (0,37) | **CALCULATE THE / MANA CONCENTRATION / IN ADVANCE, AND YOU CAN / DO THINGSLIKE THIS / ITOO. (0,97)** | CALCULATE THE / mANACONCENTRATION / IN ADVANCE,AND YOU CAN / DOTHINGSLIKE THIS (0,88; baris terakhir hilang) |
+  | (401,1936) "THAT WAY, YOU CAN USE EXACTLY AS MUCH MANA AS YOU NEED." | kotak utuh kosong; potongan terbaca "THAT WAY, / YOULCANUSE" (0,92) | **THAT WAY. / YOUCANUSE / EXACTLY AS MUCH / MANA AS YOU / NEED. (0,98)** | THAT WAY / emOYee / EXACTLY AS MUCH / mNYOU / NEED (0,71) |
+  | (358,477) "IT TAKES YOU THREE WHOLE DAYS BECAUSE YOU'RE STORING IT MINDLESSLY." | T (0,39) | **ITTAKES / YOU THREE WHOLE DAYS / BECAUSE YOU'RE STORING / IT MINDLESSLY. (0,98)** | ITTAKES / YOU THREE WHOLE DAYS / BECAUSE YOU'RE STORING / ITMINDLESSLY (0,89) |
+
+  Model rec Inggris varian **server** PP-OCRv5 (ONNX resmi
+  PaddlePaddle, Apache-2.0) dievaluasi penuh dan **tidak**
+  dijadikan bawaan: pada huruf tulis-tangan komik ini ia
+  terukur lebih buruk (spasi lebih sering menyatu, huruf
+  besar/kecil kacau, baris hilang). Bawaan tetap mobile +
+  perbaikan di atas. Sisa kelemahan jujur: spasi kata kadang
+  masih menyatu (YOUCANUSE, ITTAKES), bubble kuas ungu terbaca
+  sebagian ("AND DO / ONLY WHATURE", 0,87), bubble berduri
+  tetap sulit ("ST / MAACONCENTRATON", 0,70).
+- **Bukti akhir bab** (CLI `--ocr --lang en`, bab asli penuh):
+  halaman 003 **10 → 11 blok** (bubble kosong kini terbaca 5
+  baris penuh, 0,98), halaman 004 **15 → 15 blok** (kotak
+  ganda bubble wawancara tergabung jadi satu, teks 0,99);
+  total bab 174 → 184 blok. Lima contoh teks 003: "I CAN DO /
+  THIS..!", "GRADUATED / NEAR THE TOP OF / MY CLASS AT THE
+  ACADEMY, / AND I'VE GOT POWERFUL / CONNECTIONS!", "YOU'RE /
+  GOING TO BECOME AN / INTELLIGENCE BUREAU / AGENT, JAMES!",
+  "WOW / A FULL-FLEDGED / AGENT!", "DOYOU / NEED SOMETHING /
+  FROMME?".
+- Tes: **197 total — 196 lolos, 0 gagal, 1 skip**
+  (`tmp/xunit-results-v0715.xml`; baseline v0.7.14: 183. Tes
+  baru: BoxEditTests 8, dedupe/saringan +6 di DetectOcrTests).
+  Exe win-x64 single-file **124.949.073 byte** PE32+ GUI.
+
+Di bawah ini catatan v0.7.14.
+
 ## Status: v0.7.14 — Halaman Panjang: deteksi berpetak, potong halaman & paket zoom
 
 Tiga perbaikan untuk bab webtoon strip panjang (laporan pemilik:

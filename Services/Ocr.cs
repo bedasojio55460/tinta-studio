@@ -380,16 +380,44 @@ public sealed class OcrService : IDisposable
     private (string Text, double Confidence) RecognizeOneLine(
         SKBitmap line, OcrEngine engine)
     {
-        var first = engine.RecognizeLine(line);
+        // Pra-proses khusus Inggris (v0.7.15): garis diberi bantalan
+        // putih di sekeliling sebelum inferensi — potongan garis dari
+        // bubble komik mepet ke tepi (huruf pertama/terakhir nempel
+        // tepi potongan) dan model rec membaca spasi antar-kata
+        // lebih andal dengan margin kosong, seperti data latihnya.
+        // Dievaluasi pada potongan bubble asli bab pemilik bersama
+        // model mobile & server (tabel di project-state v0.7.15).
+        using var padded = engine.Language.Code == "en"
+            ? PadLineWhite(line) : null;
+        var src = padded ?? line;
+        var first = engine.RecognizeLine(src);
         // Koreksi teks terbalik 180° bila model klasifikasi tersedia.
-        if (_orientation.IsUpsideDown(line))
+        if (_orientation.IsUpsideDown(src))
         {
-            using var flipped = Rotate180(line);
+            using var flipped = Rotate180(src);
             var second = engine.RecognizeLine(flipped);
             if (second.Confidence > first.Confidence)
                 return second;
         }
         return first;
+    }
+
+    /// <summary>
+    /// Salin garis ke bitmap baru berlatar putih bersih dengan
+    /// bantalan: horizontal ±½ tinggi garis (dijepit 6–48 px),
+    /// vertikal ±¼ tinggi garis (dijepit 2–16 px). Latar dipaksa
+    /// putih murni agar tepi potongan yang memuat lengkung bubble
+    /// atau sisa panel tidak ikut terbaca sebagai tanda.
+    /// </summary>
+    internal static SKBitmap PadLineWhite(SKBitmap line)
+    {
+        int padX = Math.Clamp(line.Height / 2, 6, 48);
+        int padY = Math.Clamp(line.Height / 4, 2, 16);
+        var dst = new SKBitmap(line.Width + padX * 2, line.Height + padY * 2);
+        using var canvas = new SKCanvas(dst);
+        canvas.Clear(SKColors.White);
+        canvas.DrawBitmap(line, padX, padY);
+        return dst;
     }
 
     internal static SKBitmap CropWithPadding(SKBitmap page, DetectedBox box)
@@ -466,7 +494,21 @@ public sealed class OcrService : IDisposable
             }
             rowInk[y] = count > inkThreshold;
         }
-        int minGap = Math.Max(3, (int)(h * 0.06));
+        // Celah minimum antarbaris: 4% tinggi potongan, dijepit
+        // [4, 8] px. Kalibrasi v0.7.15 pada bab strip asli pemilik
+        // + fixture sintetis (profil baris tinta terukur persis):
+        // rumus lama 6% (12–17 px pada potongan 215–300 px)
+        // MENYATUKAN baris Inggris yang celah nyatanya cuma 8–16
+        // px — semua baris menyatu jadi satu pita dan model
+        // satu-baris membacanya jadi sampah satu huruf ("T", "N").
+        // Nilai 8 adalah porosnya: celah DALAM glyph fixture
+        // Jepang terbesar 7 px (tidak boleh membelah baris),
+        // celah antarbaris nyata terkecil 8 px (bubble kuas ungu,
+        // harus membelah). Celah antarbaris bubble Inggris lain
+        // 10–16 px; celah dalam satu baris tidak pernah selebar
+        // ini karena proyeksi dihitung berdensitas (satu baris
+        // harus nyaris kosong total untuk dihitung celah).
+        int minGap = Math.Clamp((int)(h * 0.04), 4, 8);
         int minBand = Math.Max(6, (int)(h * 0.10));
         var bands = new List<SKRectI>();
         int start = -1, gap = 0;

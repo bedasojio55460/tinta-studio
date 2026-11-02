@@ -1317,3 +1317,91 @@
     impor (tanpa ekspansi potongan) — deteksi berpetak membuat
     strip tetap tertangani di sana; ekspansi potongan adalah
     urusan sesi UI + proyeknya.
+- 2026-11-02: **v0.7.15 — Pegangan tarik kotak, dedupe tumpuk,
+  saringan sampah, OCR Inggris diperbaiki** (empat keluhan
+  pemilik dari tangkapan layar Typesetting/Deteksi atas bab
+  yang sama; lampu hijau eksplisit: uji wajib berkas asli,
+  kirim hasil bila sudah oke; TANPA unggah/GitHub).
+  - PEGANGAN TARIK (`Services/BoxEdit.cs` murni: HitHandle
+    sudut>tepi>badan, ApplyDrag jangkar tepi lawan + jepit
+    minimum 16 px; 8 tes): kanvas Typesetting (pratinjau seret,
+    lepas → CommitBlockResize ke Dx/Dy/Dw/Dh; kursor arah via
+    StandardCursorType sudut/tepi — Avalonia 12 tak punya
+    SizeNorthwestSoutheast dst., dipakai TopLeftCorner dkk.)
+    dan kanvas Deteksi yang sebelumnya HANYA bisa pan (klik
+    badan kotak memilih+menggeser, pegangan blok terpilih
+    mengubah bbox, lepas → CommitBlockGeometry). Screenshot
+    Xvfb tmp/tinta-v0715-typeset.png & -detect.png: blok #1
+    terpilih dengan 8 pegangan teal + footer v0.7.15.
+  - DEDUPE TUMPUK (`DetectOcrPipeline.DedupeBoxes` +
+    `OverlapOfSmaller`): duplikat bila IoU>0,85 ATAU irisan
+    ≥60% luas kotak terkecil; urut skor desc, seri → luas desc.
+    Pasangan pemilik terukur 0,978 (IoU cuma 0,489 — aturan
+    lama lolos). Hasil bab penuh: pasangan ≥60% di output
+    akhir 16 → **0**. Satu fixture tes lama disesuaikan dengan
+    alasan tercatat di tempatnya: pasangan "bertumpang
+    sebagian" (520,120) beririsan 82% — kini memang tergolong
+    duplikat; digeser ke (560,160) = 51% (tetap tumpang besar,
+    tetap sah dua kotak).
+  - SARINGAN SAMPAH (`IsJunkBlock`, jalan di mode manual +
+    Otomatis; penghitung `JunkBlocksDropped` ditampilkan CLI):
+    buang bila teks datar ≤2 huruf DAN keyakinan <0,5 DAN
+    kotak ≥150×80. Kalibrasi: profil cocok 10 blok baseline;
+    sesudah perbaikan OCR 8 sembuh jadi teks utuh, 1 kosong
+    (hal. 19, 676×566), tepat **1 terbuang saringan** (hal. 18:
+    699×226 terbaca "S" 0,41 — terverifikasi harness mentah).
+    Teks pendek asli selamat: "!" 0,96 (111×120), "TSK." 1,00,
+    "SIR?" 1,00, "HEH." 0,81, "NOW." 1,00.
+  - OCR INGGRIS: akar masalah = `SplitLineBands` minGap lama
+    6% tinggi (12–17 px) > celah antarbaris nyata 8–16 px →
+    bubble multi-baris menyatu satu pita → model satu-baris
+    mengembalikan 1 huruf. Diukur dengan profil baris produksi
+    (kriteria densitas kode sendiri) pada 9 bubble bab asli +
+    fixture JA: celah dalam glyph fixture maks 7 px, celah
+    antarbaris nyata min 8 px (bubble kuas ungu) → rumus final
+    minGap = clamp(4% tinggi, 4, 8). Plus `PadLineWhite`
+    (bantalan putih padX clamp(h/2,6,48), padY clamp(h/4,2,16))
+    khusus jalur rec "en" di RecognizeOneLine. Model SERVER
+    PP-OCRv5 (ONNX resmi PaddlePaddle/PP-OCRv5_server_rec_onnx,
+    Apache-2.0, 84.503.027 byte) dievaluasi pada bubble yang
+    sama dan DITOLAK berdasar bukti: lebih buruk di huruf
+    tulis-tangan ini (lihat tabel di README) — katalog tidak
+    berubah, mobile tetap bawaan. Hasil kunci hal. 7:
+    "CALCLLATE"→"CALCULATE" sempurna (0,98); bubble "N" (0,37)
+    → 5 baris penuh (0,97); bubble "T" (0,39) → 4 baris penuh
+    (0,98); bubble THAT WAY utuh 5 baris (0,98). Sisa jujur:
+    spasi menyatu sesekali (YOUCANUSE/ITTAKES/THINGSLIKE),
+    bubble kuas ungu sebagian ("AND DO / ONLY WHATURE" 0,87 —
+    run baris ke-3 memang menyatu di profil produksi),
+    bubble berduri lemah (0,70).
+  - BUKTI AKHIR (CLI --ocr --lang en bab penuh, konfigurasi
+    segar tmp/v0715-final-config; log tmp/v0715-final-ocr.log;
+    baseline tmp/v0715-base-ocr.log): hal. 003 **10 → 11**
+    blok, 004 **15 → 15** (isi jauh lebih baik: kotak ganda
+    wawancara tergabung, "AREYOU / HERE FOR AN / INTERVIEW?"
+    0,99), total 174 → 184 blok; saringan membuang 1.
+  - Tes: **197 total — 196 lolos, 0 gagal, 1 skip** (runner
+    konsol dari TintaStudio.Tests/bin; XML
+    tmp/xunit-results-v0715.xml; baseline v0.7.14: 183. Baru:
+    BoxEditTests 8, DetectOcrTests +6 — dedupe tumpuk 2,
+    seri-luas 1, tetangga tepi 1, OverlapOfSmaller 1,
+    saringan 2). Satu kegagalan run pertama (fixture JA
+    terbelah oleh minGap 5 rata) membawa ke rumus poros-8 di
+    atas; run ulang hijau penuh.
+  - Publish win-x64 single-file
+    (IncludeNativeLibrariesForSelfExtract): **TintaStudio.exe
+    124.949.073 byte** PE32+ GUI di
+    ~/workspace/projects/tinta-studio-publish-v0715/;
+    string "v0.7.15 — Pegangan Kotak & OCR Inggris"
+    terverifikasi tertanam (strings UTF-16).
+    VERSION + footer → 0.7.15 ("Pegangan Kotak & OCR
+    Inggris"). Commit lokal, tidak di-push, tidak diunggah.
+  - Batas jujur: (1) seret pegangan terverifikasi lewat build
+    + tes matematika murni + screenshot Xvfb (pegangan
+    tergambar) — seret sungguhan di Windows menunggu PC Ando,
+    pola sama seperti rilis sebelumnya; (2) model server
+    ditolak untuk font komik INI — untuk cetakan bersih bisa
+    jadi lain, evaluasi ulang murah bila pemilik meminta;
+    (3) watermark situs ("cYanmaGentaYellow", "ASURASCANS")
+    tetap terbaca sebagai blok — di luar keluhan & aturan
+    saringan yang aman.

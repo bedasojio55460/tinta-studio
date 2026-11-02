@@ -505,6 +505,22 @@ public sealed partial class MainWindowViewModel
         OnTypesetStyleChanged(item);
     }
 
+    /// <summary>Tarik pegangan selesai (v0.7.15): kotak render baru
+    /// (kiri/atas/lebar/tinggi piksel halaman, dihitung view lewat
+    /// BoxEdit) disimpan sebagai geometri Dx/Dy/Dw/Dh terhadap
+    /// kotak blok asli.</summary>
+    public void CommitBlockResize(TypesetBlockItemViewModel item,
+        int left, int top, int width, int height)
+    {
+        item.Block.Typeset ??= TypesetService.DefaultStyle();
+        item.Block.Typeset.Dx = left - item.Block.X;
+        item.Block.Typeset.Dy = top - item.Block.Y;
+        item.Block.Typeset.Dw = width - item.Block.Width;
+        item.Block.Typeset.Dh = height - item.Block.Height;
+        item.Refresh();
+        OnTypesetStyleChanged(item);
+    }
+
     /// <summary>Bangun ulang bitmap bersih &amp; final halaman aktif
     /// di latar (dasar bersih dari cache CleanStore).</summary>
     public async Task RefreshTypesetBitmapsAsync()
