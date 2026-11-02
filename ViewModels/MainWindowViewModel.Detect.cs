@@ -72,7 +72,11 @@ public sealed partial class MainWindowViewModel
     private DetectOcrPipeline? _pipeline;
 
     private TextBlock? _selectedBlock;
-    private OcrLanguage _selectedLanguage = OcrLanguage.Japanese;
+
+    /// <summary>Bahasa awal = Otomatis; konstruktor menimpanya
+    /// dengan pilihan terakhir pengguna dari pengaturan
+    /// (v0.7.17 — sebelumnya selalu Jepang).</summary>
+    private OcrLanguage _selectedLanguage = OcrLanguage.Auto;
     private bool _showOverlay = true;
     private bool _isDetecting;
     private double _detectProgress;
@@ -87,7 +91,42 @@ public sealed partial class MainWindowViewModel
     public OcrLanguage SelectedLanguage
     {
         get => _selectedLanguage;
-        set => Set(ref _selectedLanguage, value);
+        set
+        {
+            if (Set(ref _selectedLanguage, value))
+            {
+                // Pilihan terakhir diingat lintas jalan (v0.7.17).
+                _appSettings.DetectLanguage = value.Code;
+                AppConfig.SaveSettings(_appSettings);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Kait dialog konfirmasi dari View (jendela pemilik): menerima
+    /// pesan, mengembalikan true = pengguna memilih Lanjutkan.
+    /// Diisi MainWindow; null di luar UI (CLI/tes) berarti tidak
+    /// ada yang bisa ditanya → deteksi jalan (pewarisan tetap
+    /// menjaga terjemahan/typeset, jadi tidak ada yang hilang).
+    /// </summary>
+    public Func<string, Task<bool>>? ConfirmRedetectAsync { get; set; }
+
+    /// <summary>Pesan konfirmasi deteksi ulang (makna tetap):
+    /// <paramref name="scope"/> = "Halaman ini" / "Bab ini".</summary>
+    internal static string RedetectConfirmMessage(string scope) =>
+        $"{scope} sudah punya terjemahan/typeset. Deteksi ulang " +
+        "membaca ulang teks asli dari gambar; terjemahan & typeset " +
+        "dipertahankan lewat pencocokan kotak, tetapi teks OCR " +
+        "akan diganti hasil baru. Lanjutkan?";
+
+    /// <summary>Tanya konfirmasi bila sasaran deteksi ulang sudah
+    /// punya terjemahan/typeset; true = boleh jalan.</summary>
+    private async Task<bool> ConfirmRedetectIfNeededAsync(
+        bool needed, string scope)
+    {
+        if (!needed || ConfirmRedetectAsync is null)
+            return true;
+        return await ConfirmRedetectAsync(RedetectConfirmMessage(scope));
     }
 
     public bool ShowOverlay
@@ -254,6 +293,18 @@ public sealed partial class MainWindowViewModel
             return;
         if (!EnsureModelsReady())
             return;
+        // Deteksi ulang halaman yang sudah diterjemahkan/di-typeset
+        // mengganti teks OCR-nya — minta persetujuan dulu (v0.7.17).
+        var targetPage = _projectChapter.Pages
+            .FirstOrDefault(p => p.Index == SelectedPageIndex);
+        if (!await ConfirmRedetectIfNeededAsync(
+                targetPage is not null
+                    && BlockCarryOver.RequiresConfirmation(targetPage.Blocks),
+                "Halaman ini"))
+        {
+            StatusText = "Deteksi ulang dibatalkan — tidak ada yang berubah.";
+            return;
+        }
         IsDetecting = true;
         DetectProgress = 0;
         _detectCts = new CancellationTokenSource();
@@ -271,8 +322,15 @@ public sealed partial class MainWindowViewModel
                 return Pipeline.AnalyzePage(bmp, SelectedLanguage, ct);
             }, ct);
             var stored = _projectChapter.PageAt(index);
+            // Deteksi ulang (v0.7.17): wariskan terjemahan/typeset
+            // blok lama ke blok baru yang wilayahnya cocok + petakan
+            // ulang operasi bersih ke Id pewarisnya.
+            var carry = BlockCarryOver.Apply(
+                stored.Blocks, blocks, stored.CleanOps);
             stored.Blocks.Clear();
-            stored.Blocks.AddRange(blocks);
+            stored.Blocks.AddRange(carry.Blocks);
+            stored.CleanOps.Clear();
+            stored.CleanOps.AddRange(carry.CleanOps);
             SaveProject();
             LoadBlocksForCurrentPage();
             DetectProgress = 1;
@@ -280,9 +338,13 @@ public sealed partial class MainWindowViewModel
                 && Pipeline.DetectedLanguages.TryGetValue(0, out var guessedPage)
                     ? $"Bahasa terdeteksi: {guessedPage.DisplayName}"
                     : SelectedLanguage.DisplayName;
+            var carryNote = carry.InheritedCount > 0
+                ? $" {carry.InheritedCount} blok mempertahankan " +
+                  "terjemahan/typeset sebelumnya."
+                : "";
             StatusText = blocks.Count > 0
                 ? $"Halaman {index + 1}: {blocks.Count} blok teks terbaca " +
-                  $"({langNote})."
+                  $"({langNote}).{carryNote}"
                 : $"Halaman {index + 1}: tidak ada blok teks terdeteksi.";
         }
         catch (OperationCanceledException)
@@ -307,6 +369,15 @@ public sealed partial class MainWindowViewModel
             return;
         if (!EnsureModelsReady())
             return;
+        // Sama seperti mode halaman: bab yang sudah punya
+        // terjemahan/typeset dikonfirmasi dulu (v0.7.17).
+        if (!await ConfirmRedetectIfNeededAsync(
+                BlockCarryOver.RequiresConfirmation(_projectChapter.Pages),
+                "Bab ini"))
+        {
+            StatusText = "Deteksi ulang dibatalkan — tidak ada yang berubah.";
+            return;
+        }
         IsDetecting = true;
         DetectProgress = 0;
         _detectCts = new CancellationTokenSource();

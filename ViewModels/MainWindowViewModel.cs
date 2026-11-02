@@ -29,6 +29,9 @@ public sealed partial class MainWindowViewModel : ViewModelBase
 
     public MainWindowViewModel()
     {
+        // Bahasa deteksi: pilihan terakhir pengguna dari
+        // pengaturan; belum pernah memilih → Otomatis (v0.7.17).
+        _selectedLanguage = _appSettings.EffectiveDetectLanguage;
         LibraryEntries = new ObservableCollection<LibraryEntry>(_library.Entries);
         Pages = new ObservableCollection<PageItemViewModel>();
         PrevPageCommand = new RelayCommand(PrevPage, () => SelectedPageIndex > 0);

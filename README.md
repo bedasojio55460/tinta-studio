@@ -11,6 +11,62 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.7.17 — Deteksi ulang aman: hasil kerja tidak hilang, bahasa diingat & cadangan proyek
+
+Empat perbaikan dari temuan uji PC pemilik atas v0.7.16 — semua
+bermula dari satu kecelakaan: menekan Deteksi & OCR pada halaman
+yang sudah diterjemahkan membuang seluruh pekerjaan lama tanpa
+peringatan:
+
+- **Deteksi ulang MEWARISKAN hasil kerja** (Services/
+  BlockCarryOver.cs, fungsi murni). Blok hasil deteksi baru
+  dipasangkan ke blok lama yang wilayahnya paling cocok
+  (IoU ≥ 0,30, atau pusat salah satu kotak berada di dalam kotak
+  lainnya — menangkap kotak yang menyusut/mengembang jauh;
+  pencocokan rakus, satu blok lama hanya diwarisi satu blok
+  baru). Blok pewaris menerima terjemahan (+ cap asal & waktu),
+  cadangan poles, dan gaya typeset blok lamanya; operasi bersih
+  lama dipetakan ulang ke Id pewarisnya (yang bloknya hilang
+  dibuang agar tidak menggambar hapusan yatim di tempat yang
+  salah). Deteksi ulang tidak lagi berarti mengulang dari nol.
+- **Konfirmasi sebelum deteksi ulang yang merusak.** Bila bab/
+  halaman yang akan dideteksi ulang memuat blok yang sudah
+  diterjemahkan atau di-typeset, dialog konfirmasi tampil dulu;
+  deteksi halaman/bab polos tetap langsung jalan.
+- **Bahasa deteksi: bawaan Otomatis + pilihan diingat.**
+  Sebelumnya pilihan bahasa selalu kembali ke Jepang setiap
+  aplikasi dibuka — bab Inggris hasil deteksi ulang ikut
+  tertanda "ja". Kini bawaan segar adalah Otomatis, dan pilihan
+  terakhir pengguna tersimpan (AppSettings.DetectLanguage;
+  kode tak dikenal jatuh ke Otomatis).
+- **Simpan proyek atomik + cadangan satu generasi.** Berkas
+  proyek ditulis ke .tmp dulu, berkas lama disalin ke .bak,
+  baru diganti — penulisan terputus di tengah tidak pernah
+  meninggalkan berkas utama setengah jadi, dan bila berkas
+  utama korup saat dibuka, proyek dipulihkan otomatis dari
+  .bak (halaman 4 yang tak bisa dipulihkan pada uji pemilik
+  tidak terulang).
+- Tes: **236 total — 235 lolos, 0 gagal, 1 skip** (runner
+  konsol dalam-proses; XML `tmp/xunit-results-v0717-final.xml`;
+  baseline v0.7.16: 216. Baru +20 di `V0717Tests`: pewarisan
+  pasangan persis/geser/kandungan/di bawah ambang, persaingan
+  IoU, satu pewaris, pemetaan ops bersih + yatim dibuang,
+  matriks konfirmasi, bawaan/putaran-simpan bahasa, .bak
+  memegang versi sebelumnya + pemulihan korup). Build Release
+  bersih 0/0; publish win-x64 single-file
+  (IncludeNativeLibrariesForSelfExtract): **TintaStudio.exe
+  124.965.457 byte** PE32+ GUI di
+  ~/workspace/projects/tinta-studio-publish-v0717/; string
+  footer "v0.7.17 — Deteksi Ulang Aman" terverifikasi tertanam
+  (strings UTF-16). Commit lokal, tidak di-push, tidak diunggah.
+- Batas jujur: (1) pewarisan berbasis kecocokan kotak — blok
+  yang bergeser sangat jauh dari posisi lamanya wajar tidak
+  berpasangan dan mulai kosong; dialog konfirmasi adalah jaring
+  pengamannya; (2) cadangan hanya satu generasi (.bak = versi
+  simpan sebelumnya persis); (3) klik dialog konfirmasi di
+  Windows sungguhan menunggu uji PC pemilik, pola verifikasi
+  yang sama seperti rilis sebelumnya.
+
 ## Status: v0.7.16 — Model bawaan mati diganti + migrasi, peringatan halaman belum dibersihkan & toggle Kotak Typesetting
 
 Tiga perbaikan dari temuan uji PC pemilik atas v0.7.15:

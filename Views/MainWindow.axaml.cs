@@ -1,4 +1,7 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Layout;
+using Avalonia.Media;
 using TintaStudio.Services;
 using TintaStudio.ViewModels;
 
@@ -71,11 +74,57 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>Dialog konfirmasi deteksi ulang (v0.7.17): pola
+    /// jendela konfirmasi yang sama seperti dialog lain di
+    /// aplikasi (dibangun dari kode, Close(bool) sebagai hasil).
+    /// true = pengguna memilih "Lanjutkan".</summary>
+    private async Task<bool> ShowRedetectConfirmAsync(string message)
+    {
+        var confirm = new Window
+        {
+            Title = "Deteksi Ulang",
+            Width = 520,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = new SolidColorBrush(Color.Parse("#101216")),
+        };
+        var panel = new StackPanel { Spacing = 10, Margin = new Thickness(16) };
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Deteksi ulang halaman/bab ini?",
+            FontWeight = FontWeight.SemiBold,
+            FontSize = 13,
+            TextWrapping = TextWrapping.Wrap,
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = message,
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+        });
+        var row = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        var cancel = new Button { Content = "Batal" };
+        cancel.Click += (_, _) => confirm.Close(false);
+        var yes = new Button { Content = "Lanjutkan" };
+        yes.Click += (_, _) => confirm.Close(true);
+        row.Children.Add(cancel);
+        row.Children.Add(yes);
+        panel.Children.Add(row);
+        confirm.Content = panel;
+        return await confirm.ShowDialog<bool>(this);
+    }
+
     private async void OnOpened(object? sender, EventArgs e)
     {
         UpdateMenuStyles();
         if (ViewModel is { } vm)
         {
+            vm.ConfirmRedetectAsync = ShowRedetectConfirmAsync;
             // Penawaran lokasi jalan pertama (v0.7.13) — sebelum
             // alat uji lain agar dialog sambutan selalu didahulukan.
             if (await Task.Run(() => FirstRunOffer.ShouldOfferNow()))

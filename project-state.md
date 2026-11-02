@@ -1535,3 +1535,52 @@
   Ekspor, penutup. Tidak ada lagi teks/footer v0.7.7/v0.7.9 di
   PDF maupun video (terverifikasi grep sumber + teks PDF +
   frame video).
+- 2026-11-02: **v0.7.17 — Deteksi Ulang Aman** (empat temuan
+  uji PC pemilik atas v0.7.16: deteksi ulang membuang
+  terjemahan/typeset tanpa peringatan; bahasa reset ke
+  Jepang; halaman 4 tak bisa dipulihkan. TANPA unggah/GitHub).
+  - PEWARISAN DETEKSI ULANG: Services/BlockCarryOver.cs baru
+    (fungsi murni). Blok baru dipasangkan ke blok lama via IoU
+    terbaik (MinIou 0,30) ATAU pusat salah satu kotak di dalam
+    kotak lainnya; rakus IoU menurun, satu blok lama = satu
+    pewaris. Pewaris mewarisi terjemahan (+ cap asal & waktu),
+    cadangan poles, gaya typeset (salinan dalam). CleanOps
+    dipetakan ulang via IdMap; ops yatim dibuang. Dipakai
+    DetectOcrPipeline saat hasil deteksi baru menggantikan
+    blok halaman.
+  - KONFIRMASI DETEKSI ULANG: keputusan murni
+    RequiresConfirmation (blok berterjemahan/bertypeset di
+    halaman/bab sasaran) di MainWindowViewModel.Detect.cs +
+    dialog di Views/MainWindow.axaml.cs; tanpa pekerjaan yang
+    bisa hilang, deteksi berjalan langsung seperti sebelumnya.
+  - BAHASA DETEKSI: AppSettings.DetectLanguage (string kode)
+    + EffectiveDetectLanguage — bawaan segar Otomatis (dulu
+    selalu Jepang), pilihan terakhir tersimpan & dimuat lagi;
+    kode tak dikenal → Otomatis.
+  - CADANGAN PROYEK: TintaProject.Save kini atomik — tulis
+    .tmp, salin berkas lama ke .bak (satu generasi), lalu
+    File.Move menggantikan utama; GetOrCreate memulihkan dari
+    .bak bila berkas utama korup (gagal total tidak menyentuh
+    .bak).
+  - Tes: **236 total — 235 lolos, 0 gagal, 1 skip** (runner
+    konsol dari TintaStudio.Tests/bin; XML final sesudah bump
+    tmp/xunit-results-v0717-final.xml, run SOLO exit 0;
+    baseline v0.7.16: 216/215/0/1). Baru V0717Tests 20:
+    pewarisan 9 (persis, geser, kandungan IoU rendah, di bawah
+    ambang, tanpa pasangan, persaingan IoU, satu pewaris,
+    pemetaan ops bersih + yatim, tanpa ops), konfirmasi 4,
+    bahasa 3, simpan atomik/.bak 4.
+  - Build Release bersih 0/0; publish win-x64 single-file
+    (IncludeNativeLibrariesForSelfExtract): **TintaStudio.exe
+    124.965.457 byte** PE32+ GUI di
+    ~/workspace/projects/tinta-studio-publish-v0717/; string
+    footer "v0.7.17" + "Deteksi Ulang Aman" terverifikasi
+    tertanam (strings UTF-16), footer lama 0 kemunculan.
+    VERSION + footer → 0.7.17 ("Deteksi Ulang Aman"). Commit
+    lokal, tidak di-push, tidak diunggah.
+  - Batas jujur: (1) pewarisan berbasis geometri — blok yang
+    pindah sangat jauh tidak berpasangan dan mulai kosong;
+    dialog konfirmasi jaring pengamannya; (2) .bak hanya satu
+    generasi; (3) dialog konfirmasi terverifikasi build + tes
+    keputusan murni — klik UI sungguhan di Windows menunggu
+    PC pemilik, pola rilis sebelumnya.

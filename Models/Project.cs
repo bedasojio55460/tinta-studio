@@ -48,10 +48,26 @@ public sealed class TintaProject
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
     };
 
+    /// <summary>
+    /// Simpan berkas proyek secara atomik + satu generasi cadangan
+    /// (v0.7.17): isi baru ditulis ke <c>&lt;path&gt;.tmp</c> dulu,
+    /// berkas lama disalin ke <c>&lt;path&gt;.bak</c>, baru tmp
+    /// diganti menjadi berkas utama. Penulisan yang terputus di
+    /// tengah (listrik mati, aplikasi tertutup paksa) tidak pernah
+    /// meninggalkan berkas utama setengah jadi, dan selalu ada
+    /// versi sebelumnya yang utuh untuk dipulihkan GetOrCreate.
+    /// </summary>
     public void Save(string path)
     {
         var json = JsonSerializer.Serialize(this, JsonOptions);
-        File.WriteAllText(path, json);
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+        var tmpPath = path + ".tmp";
+        File.WriteAllText(tmpPath, json);
+        if (File.Exists(path))
+            File.Copy(path, path + ".bak", overwrite: true);
+        File.Move(tmpPath, path, overwrite: true);
     }
 
     public static TintaProject Load(string path)

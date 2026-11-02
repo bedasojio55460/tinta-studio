@@ -52,6 +52,27 @@ public sealed class AppSettings
     /// <summary>Status penawaran lokasi efektif (bawaan false).</summary>
     public bool EffectiveLocationOfferShown => LocationOfferShown ?? false;
 
+    /// <summary>Pilihan bahasa terakhir di halaman Deteksi &amp;
+    /// OCR (v0.7.17): kode bahasa ("auto"|"ja"|"ko"|"ch"|"en").
+    /// String (bukan nullable-bool) supaya nilai apa pun tertulis
+    /// apa adanya; null/kode tak dikenal = pengguna belum pernah
+    /// memilih → bawaan Otomatis lewat
+    /// <see cref="EffectiveDetectLanguage"/>. Sebelumnya bawaan
+    /// selalu Jepang — bab Inggris hasil deteksi ulang ikut
+    /// tertanda "ja".</summary>
+    public string? DetectLanguage { get; set; }
+
+    /// <summary>Bahasa deteksi efektif: pilihan tersimpan yang
+    /// sah, selain itu Otomatis.</summary>
+    public OcrLanguage EffectiveDetectLanguage => DetectLanguage switch
+    {
+        "ja" => OcrLanguage.Japanese,
+        "ko" => OcrLanguage.Korean,
+        "ch" => OcrLanguage.Chinese,
+        "en" => OcrLanguage.English,
+        _ => OcrLanguage.Auto,
+    };
+
     public Dictionary<string, ProviderSettings> Providers { get; set; } = new();
 
     /// <summary>Pengaturan penyedia ini; dibuat dengan nilai bawaan

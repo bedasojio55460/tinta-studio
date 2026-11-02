@@ -332,8 +332,16 @@ public sealed class DetectOcrPipeline : IDisposable
                 return result;
             }, ct);
             var stored = projectChapter.PageAt(i);
+            // Deteksi ulang (v0.7.17): blok baru mewarisi
+            // terjemahan/typeset blok lama yang wilayahnya cocok,
+            // dan operasi bersih dipetakan ke Id pewarisnya —
+            // pekerjaan pengguna tidak dibuang oleh deteksi ulang.
+            var carry = BlockCarryOver.Apply(
+                stored.Blocks, blocks, stored.CleanOps);
             stored.Blocks.Clear();
-            stored.Blocks.AddRange(blocks);
+            stored.Blocks.AddRange(carry.Blocks);
+            stored.CleanOps.Clear();
+            stored.CleanOps.AddRange(carry.CleanOps);
             progress?.Report((i + 1, total));
         }
     }
@@ -433,7 +441,13 @@ public static class ProjectStore
             }
             catch
             {
-                project = NewProject(chapter);
+                // Berkas utama korup (v0.7.17): coba cadangan satu
+                // generasi dulu sebelum menyerah ke proyek baru.
+                // Jalur pemulihan ini MURNI membaca — .bak tidak
+                // pernah ditimpa di sini, termasuk saat pemulihan
+                // gagal total (proyek baru) agar generasi cadangan
+                // terakhir tetap utuh di disk.
+                project = TryLoadBackup(path) ?? NewProject(chapter);
             }
         }
         else
@@ -461,6 +475,23 @@ public static class ProjectStore
             pc.PageCount = chapter.Pages.Count;
         }
         return (project, pc);
+    }
+
+    /// <summary>Muat cadangan <c>&lt;path&gt;.bak</c>; null bila
+    /// tidak ada atau ikut korup. Tidak pernah menulis apa pun.</summary>
+    private static TintaProject? TryLoadBackup(string path)
+    {
+        var bakPath = path + ".bak";
+        if (!File.Exists(bakPath))
+            return null;
+        try
+        {
+            return TintaProject.Load(bakPath);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static TintaProject NewProject(Chapter chapter) => new()
