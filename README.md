@@ -11,6 +11,13 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.7.12 — judul seksi Hapus Bersih dipersingkat
+
+v0.7.12: judul seksi penghapusan di dialog Pengaturan Key & Model
+kini cukup **"HAPUS BERSIH"** (sebelumnya "HAPUS BERSIH — ZONA
+BERBAHAYA") — fungsi, bingkai, instruksi, dan konfirmasi keduanya
+tidak berubah, hanya labelnya. Di bawah ini catatan v0.7.11.
+
 ## Status: v0.7.11 — Instal Instan (Ollama + Ambil Key) & Hapus Bersih
 
 Dialog **Pengaturan Key & Model** kini mengurus sendiri hal-hal
@@ -29,7 +36,7 @@ yang dulu harus dilakukan manual di luar aplikasi:
 - **Tombol Ambil Key** di kartu Gemini, Groq, dan OpenRouter
   membuka halaman key resmi penyedia di browser — alamat API
   bukan lagi satu-satunya petunjuk (dan memang 404 bila dibuka).
-- **Hapus Bersih — Zona Berbahaya**: seksi di bagian bawah dialog
+- **Hapus Bersih**: seksi di bagian bawah dialog
   menampilkan instruksi jujur + daftar persis folder yang akan
   dihapus beserta ukuran live dari disk (folder data aplikasi
   dari resolver `AppConfig`, folder cache model dari

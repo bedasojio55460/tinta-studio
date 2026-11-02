@@ -1098,3 +1098,23 @@
     mengikuti pola yang sama seperti rilis sebelumnya.
     Pembuktian penuh menunggu PC Windows Ando. Commit lokal,
     tidak di-push.
+- 2026-11-02: **v0.7.12 — judul seksi Hapus Bersih dipersingkat.**
+  Atas permintaan pemilik: judul seksi penghapusan di dialog
+  Pengaturan Key & Model kini cukup "HAPUS BERSIH" (sebelumnya
+  "HAPUS BERSIH — ZONA BERBAHAYA"). Perubahan hanya satu string
+  label di `Views/TranslateSettingsWindow.cs` (BuildWipeSection);
+  bingkai merah, teks instruksi, daftar folder + ukuran live,
+  konfirmasi kedua, dan seluruh logika DataWipe TIDAK berubah.
+  VERSION → 0.7.12, footer jendela → "v0.7.12 — Typeset
+  Otomatis".
+  - Tes: **129 total — 128 lolos, 0 gagal, 1 skip** (XML
+    tmp/xunit-results-v0712.xml; identik baseline v0.7.11;
+    skip = loopback sandbox yang sama).
+  - Build Release bersih 0/0; publish win-x64 single-file
+    (IncludeNativeLibrariesForSelfExtract): **TintaStudio.exe
+    124.830.289 byte** PE32+ GUI — ukuran persis sama dengan
+    v0.7.11 (hanya string yang berubah). Verifikasi biner:
+    "ZONA BERBAHAYA" 0 kemunculan, "v0.7.12" ada.
+  - Screenshot judul baru: docs/v0712-hapus-bersih.png
+    (TINTA_SETTINGS=1 di Xvfb :99; total live terbaca
+    319,9 MB dari 2 folder). Commit lokal, tidak di-push.

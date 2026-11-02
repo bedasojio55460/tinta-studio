@@ -686,7 +686,7 @@ public sealed class TranslateSettingsWindow : Window
         return $"Key #{index + 1} — ••••••••{tail}";
     }
 
-    // ── Hapus Bersih — Zona Berbahaya (v0.7.11) ─────────────────
+    // ── Hapus Bersih (v0.7.11; judul dipersingkat v0.7.12) ──────
 
     /// <summary>Seksi Hapus Bersih di bagian bawah dialog:
     /// instruksi jujur + daftar folder persis beserta ukuran live
@@ -706,7 +706,7 @@ public sealed class TranslateSettingsWindow : Window
         };
         panel.Children.Add(new TextBlock
         {
-            Text = "HAPUS BERSIH — ZONA BERBAHAYA",
+            Text = "HAPUS BERSIH",
             FontSize = 11,
             FontWeight = FontWeight.SemiBold,
             Foreground = new SolidColorBrush(Color.Parse("#F08379")),

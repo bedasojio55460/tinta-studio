@@ -13,7 +13,7 @@
         <Border DockPanel.Dock="Bottom" Background="#101216"
                 BorderBrush="#26292F" BorderThickness="0,1,0,0" Padding="12,6">
             <Grid ColumnDefinitions="Auto,*,Auto">
-                <TextBlock Text="v0.7.11 — Typeset Otomatis" Foreground="#8A939E" FontSize="12" />
+                <TextBlock Text="v0.7.12 — Typeset Otomatis" Foreground="#8A939E" FontSize="12" />
                 <TextBlock Grid.Column="1" Text="{Binding StatusText}" Margin="18,0,12,0"
                            FontSize="12" TextTrimming="CharacterEllipsis" />
                 <TextBlock Grid.Column="2" Text="{Binding ContextInfo}" Foreground="#8A939E"
