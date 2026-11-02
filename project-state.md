@@ -1118,3 +1118,90 @@
   - Screenshot judul baru: docs/v0712-hapus-bersih.png
     (TINTA_SETTINGS=1 di Xvfb :99; total live terbaca
     319,9 MB dari 2 folder). Commit lokal, tidak di-push.
+- 2026-11-02: **v0.7.13 — Lokasi Data & Model + kartu LM Studio
+  setara Ollama.** Tiga tambahan scope dari pemilik dalam satu
+  versi: (1) data+model aplikasi bisa dipindah ke folder mana pun
+  di disk mana pun lewat penanda, Hapus Bersih mengikuti;
+  (2) penawar lokasi sekali-saja saat jalan pertama, dengan
+  kalimat tidak-mengunci persis dari pemilik; (3) keterangan
+  kartu LM Studio, lalu diperluas: status LM Studio disamakan
+  semampunya dengan Ollama.
+  - Resolver penanda (`Services/DataLocation.cs`): `location.json`
+    di ConfigDir bawaan berisi {version, dataRoot}; susunan
+    pindahan `<root>/config` + `<root>/cache`. Dibaca segar tiap
+    resolve; rusak/relatif/kosong → jatuh ke bawaan; env
+    TINTA_CONFIG_DIR/TINTA_MODEL_DIR tetap di atas penanda.
+    Semua konsumen (AppConfig.ConfigDir, ModelStore.CacheRootDir,
+    ProjectStore, CleanStore, LibraryService) lewat jalur ini.
+  - Pemindah (`Services/DataMover.cs` + `DataRelocation.cs`):
+    rencana berisi ukuran live + SameVolume; validasi tujuan
+    (mutlak, tidak sama/di dalam/menampung sumber); eksekusi
+    rename satu volume dengan fallback salin, atau salin +
+    verifikasi SHA-256 + hapus per berkas lintas volume; progres
+    + batal; galat per berkas dilaporkan; sisa gagal-hapus jadi
+    Leftovers (tidak menggagalkan). Penanda ditulis/dihapus
+    HANYA bila MoveResult.Completed.
+  - UI Lokasi Data & Model di dialog Key & Model: lokasi berlaku
+    + total live, Pilih Folder… (ruang bebas tujuan), dialog
+    rencana + konfirmasi, progres async, Kembalikan ke Bawaan;
+    teks selesai jujur soal mulai ulang untuk berkas yang sedang
+    terkunci (salinan sudah siap di tujuan). Penawar jalan
+    pertama (`Views/FirstRunOfferWindow.cs`, hook MainWindow.
+    OnOpened sebelum blok TINTA_SETTINGS): tampil hanya bila
+    tanpa penanda + flag AppSettings.LocationOfferShown belum
+    terpasang + data bawaan ≤ 64 KiB; kalimat persis pemilik:
+    "Pilihan ini tidak mengunci — lokasi bisa diganti kapan pun
+    lewat Pengaturan Key & Model → Lokasi Data & Model." Kedua
+    pilihan menandai flag; tidak ada logika pengunci di mana pun.
+  - DataWipe gabungan: target dari resolver berlaku + baris
+    "lokasi lama" untuk folder bawaan yang masih berisi data
+    (ukuran dikurangi byte penanda agar tak terhitung ganda;
+    baris yatim hilang bila sisanya hanya penanda) + target
+    berkas penanda PALING AKHIR (WipeTarget.IsFile). Teks hitung
+    hasil kini memisahkan folder vs berkas penanda.
+  - Lokasi model Ollama: OllamaService.DefaultModelsDir/
+    ResolveModelsDir/EffectiveModelsDir murni; tombol pindah
+    menetapkan OLLAMA_MODELS scope User + verifikasi baca-balik
+    (TrySetUserModelsDir jujur false bila tak didukung), isi
+    lama ditawarkan ikut pindah via DataMover; teks jujur soal
+    mulai ulang Ollama dari tray; proses Ollama tidak dibunuh.
+  - LM Studio (`Services/LmStudio.cs`, pola Ollama.cs):
+    ParseModels dari {"data":[{"id"}]}, NormalizeBase,
+    MapState; ProbeAsync GET {Base URL kartu}/models timeout
+    ±3 dtk; FindExecutableOnDisk: %LOCALAPPDATA%\Programs\LM
+    Studio\LM Studio.exe + varian Program Files + PATH. UI:
+    keterangan penjelas di bawah judul kartu + seksi "INSTAL
+    INSTAN — LM STUDIO DI PC INI": Running (nama model dimuat
+    ditampilkan) / InstalledNotRunning (Buka LM Studio + teks
+    jujur server dinyalakan dari tab Developer/Server, Tinta
+    tidak bisa) / NotInstalled (Pasang LM Studio membuka
+    https://lmstudio.ai/download di browser — BUKAN unduh
+    installer langsung, alasannya ditulis di UI).
+  - Tes: **158 total — 157 lolos, 0 gagal, 1 skip** (XML
+    tmp/xunit-results-v0713.xml; baseline 129 tetap hijau + 21
+    DataLocationTests + 8 LmStudioTests; skip = loopback sandbox
+    yang sama). Satu tes dieksekusi sempat merah di run antara:
+    penanda yang gugur bersama folder induknya tercatat
+    AlreadyAbsent, bukan Deleted — ekspektasi tes diluruskan ke
+    keadaan akhir (penanda musnah, resolver kembali ke bawaan).
+  - Build Release bersih 0/0; publish win-x64 single-file
+    (IncludeNativeLibrariesForSelfExtract): **TintaStudio.exe
+    124.891.729 byte** PE32+ GUI; verifikasi biner: "v0.7.13",
+    "LOKASI DATA & MODEL", "LM Studio adalah aplikasi" tertanam.
+  - Screenshot (Xvfb :99, TINTA_SETTINGS=1, HOME sandbox dengan
+    penanda aktif): docs/v0713-lokasi-data.png (seksi lokasi —
+    status PINDAHAN), docs/v0713-hapus-bersih.png (daftar
+    gabungan 4 folder + berkas penanda, total live),
+    docs/v0713-lm-studio.png (kartu LM Studio: keterangan +
+    status belum terpasang + lokasi model Ollama).
+  - Batas jujur: pemindahan berkas yang terkunci proses berjalan
+    di Windows sungguhan hanya terbukti sebagian dari VM
+    (logika galat per berkas + penanda-hanya-saat-tuntas teruji;
+    kunci berkas Windows asli tidak ada di VM). SetEnvironment-
+    Variable scope User di Linux VM ini no-op — TrySetUser-
+    ModelsDir mengembalikan false secara jujur dan kontrak
+    baca-baliknya teruji; efek penuhnya menunggu PC Windows
+    Ando. Probe LM Studio di VM = NotInstalled (keadaan nyata
+    VM); keadaan Running/InstalledNotRunning teruji via stub.
+    Commit lokal, tidak di-push, tidak diunggah (menunggu kata
+    pemilik).

@@ -334,26 +334,14 @@ public sealed class DetectOcrPipeline : IDisposable
 
 /// <summary>
 /// Penyimpanan proyek kerja otomatis per bab: berkas
-/// ~/.config/tinta-studio/projects/&lt;hash&gt;.tinta.json
-/// (override basis: env TINTA_CONFIG_DIR). Satu bab = satu proyek
-/// berisi bab itu; dibuat saat pertama dibuka, diperbarui saat
-/// deteksi/suntingan blok terjadi.
+/// projects/&lt;hash&gt;.tinta.json di dalam folder data aplikasi
+/// (AppConfig.ConfigDir — mengikuti penanda lokasi v0.7.13).
+/// Satu bab = satu proyek berisi bab itu; dibuat saat pertama
+/// dibuka, diperbarui saat deteksi/suntingan blok terjadi.
 /// </summary>
 public static class ProjectStore
 {
-    public static string StoreDir
-    {
-        get
-        {
-            var env = Environment.GetEnvironmentVariable("TINTA_CONFIG_DIR");
-            var baseDir = !string.IsNullOrWhiteSpace(env)
-                ? env
-                : Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                    ".config", "tinta-studio");
-            return Path.Combine(baseDir, "projects");
-        }
-    }
+    public static string StoreDir => Path.Combine(AppConfig.ConfigDir, "projects");
 
     public static string PathFor(string sourcePath)
     {

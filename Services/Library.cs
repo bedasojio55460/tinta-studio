@@ -12,8 +12,9 @@ public sealed record LibraryEntry(
     DateTimeOffset OpenedAtUtc);
 
 /// <summary>
-/// Indeks pustaka bab yang pernah dibuka, disimpan sebagai JSON di
-/// <c>~/.config/tinta-studio/library.json</c> (pola sama di semua OS).
+/// Indeks pustaka bab yang pernah dibuka, disimpan sebagai JSON
+/// bernama library.json di folder data aplikasi
+/// (AppConfig.ConfigDir — mengikuti penanda lokasi v0.7.13).
 /// Berkas asli komik tidak disalin — pustaka hanya mengingat jalurnya.
 /// </summary>
 public sealed class LibraryService
@@ -35,10 +36,7 @@ public sealed class LibraryService
     }
 
     public static string DefaultPath()
-    {
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return Path.Combine(home, ".config", "tinta-studio", "library.json");
-    }
+        => Path.Combine(AppConfig.ConfigDir, "library.json");
 
     public IReadOnlyList<LibraryEntry> Entries => _entries;
 

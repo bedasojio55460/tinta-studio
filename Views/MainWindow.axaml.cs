@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using TintaStudio.Services;
 using TintaStudio.ViewModels;
 
 namespace TintaStudio.Views;
@@ -31,11 +32,55 @@ public partial class MainWindow : Window
             vm.ReloadSettings();
     }
 
+    /// <summary>Penawaran lokasi data sekali-saja saat jalan
+    /// pertama (v0.7.13): tampil hanya bila FirstRunOffer
+    /// membolehkan. "Pilih Folder…" menulis penanda lokasi lewat
+    /// mekanisme yang sama seperti seksi Lokasi Data &amp; Model
+    /// (pada titik ini belum ada isi berarti untuk dipindah —
+    /// cukup penanda + muat ulang pengaturan); batal memilih
+    /// folder mengembalikan penawaran; pilihan lain (termasuk
+    /// menutup jendela) mencatat flag "sudah ditawari".</summary>
+    private async Task ShowFirstRunOfferAsync(MainWindowViewModel vm)
+    {
+        while (true)
+        {
+            var choice = await new FirstRunOfferWindow()
+                .ShowDialog<FirstRunChoice>(this);
+            if (choice == FirstRunChoice.PilihFolder)
+            {
+                var folder = await FilePickers.PickFolderAsync(
+                    this, "Pilih Folder untuk Data & Model Tinta Studio");
+                if (folder is null)
+                    continue; // belum ada keputusan — tawarkan lagi
+                var error = DataMover.ValidateDestination(folder, new[]
+                {
+                    DataLocation.EffectiveConfigDir,
+                    DataLocation.EffectiveCacheRootDir,
+                });
+                if (error is not null)
+                    continue; // folder tak sah — tawarkan lagi
+                FirstRunOffer.MarkOffered();
+                DataLocation.WriteMarker(folder);
+                vm.ReloadSettings();
+            }
+            else
+            {
+                FirstRunOffer.MarkOffered();
+            }
+            break;
+        }
+    }
+
     private async void OnOpened(object? sender, EventArgs e)
     {
         UpdateMenuStyles();
         if (ViewModel is { } vm)
         {
+            // Penawaran lokasi jalan pertama (v0.7.13) — sebelum
+            // alat uji lain agar dialog sambutan selalu didahulukan.
+            if (await Task.Run(() => FirstRunOffer.ShouldOfferNow()))
+                await ShowFirstRunOfferAsync(vm);
+
             vm.PropertyChanged += (_, args) =>
             {
                 if (args.PropertyName is nameof(MainWindowViewModel.IsLibraryActive)

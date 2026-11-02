@@ -489,19 +489,7 @@ public sealed class CleanService : IDisposable
 /// </summary>
 public static class CleanStore
 {
-    public static string StoreDir
-    {
-        get
-        {
-            var env = Environment.GetEnvironmentVariable("TINTA_CONFIG_DIR");
-            var baseDir = !string.IsNullOrWhiteSpace(env)
-                ? env
-                : Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                    ".config", "tinta-studio");
-            return Path.Combine(baseDir, "cleaned");
-        }
-    }
+    public static string StoreDir => Path.Combine(AppConfig.ConfigDir, "cleaned");
 
     /// <summary>Tanda tangan gambar dasar satu halaman: operasi per
     /// blok + sapuan penghapus latar (jenis sapuan lain dikomposit

@@ -186,6 +186,60 @@ public sealed class OllamaService
         return false;
     }
 
+    // ── Lokasi folder model (v0.7.13) ───────────────────────────
+
+    /// <summary>Folder model bawaan Ollama: ~/.ollama/models.</summary>
+    public static string DefaultModelsDir => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".ollama", "models");
+
+    /// <summary>Resolusi murni lokasi model efektif: variabel
+    /// pengguna OLLAMA_MODELS menang, lalu variabel proses, kalau
+    /// tidak folder bawaan. (Ollama sendiri membaca OLLAMA_MODELS
+    /// saat server dimulai; nilai kosong/spasi dianggap tak ada.)</summary>
+    public static string ResolveModelsDir(string? userEnv, string? processEnv)
+    {
+        if (!string.IsNullOrWhiteSpace(userEnv))
+            return userEnv.Trim();
+        if (!string.IsNullOrWhiteSpace(processEnv))
+            return processEnv.Trim();
+        return DefaultModelsDir;
+    }
+
+    /// <summary>Lokasi model Ollama yang berlaku di mesin ini.</summary>
+    public static string EffectiveModelsDir => ResolveModelsDir(
+        Environment.GetEnvironmentVariable("OLLAMA_MODELS", EnvironmentVariableTarget.User),
+        Environment.GetEnvironmentVariable("OLLAMA_MODELS", EnvironmentVariableTarget.Process));
+
+    /// <summary>Tetapkan OLLAMA_MODELS lingkup pengguna (Windows:
+    /// ditulis ke registri pengguna; berlaku untuk proses Ollama
+    /// yang dimulai SESUDAH ini). Keberhasilan DIVERIFIKASI dengan
+    /// membaca balik: sistem yang tidak menyimpan variabel
+    /// pengguna (mis. non-Windows) membalas false + pesan jujur,
+    /// bukan diam-diam mengaku berhasil.</summary>
+    public static bool TrySetUserModelsDir(string path, out string? error)
+    {
+        error = null;
+        try
+        {
+            Environment.SetEnvironmentVariable(
+                "OLLAMA_MODELS", path, EnvironmentVariableTarget.User);
+            var back = Environment.GetEnvironmentVariable(
+                "OLLAMA_MODELS", EnvironmentVariableTarget.User);
+            if (back is not null && DataLocation.PathsEqual(back, path))
+                return true;
+            error = "Sistem ini tidak menyimpan variabel lingkungan " +
+                    "pengguna (OLLAMA_MODELS), jadi lokasi model Ollama " +
+                    "tidak bisa ditetapkan dari aplikasi di sistem ini.";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
     /// <summary>Format ukuran byte menjadi label ringkas id-ID
     /// (mis. "4,7 GB") untuk daftar model terpasang.</summary>
     public static string FormatSize(long bytes)

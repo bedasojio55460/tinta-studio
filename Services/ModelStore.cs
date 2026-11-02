@@ -32,11 +32,14 @@ public static class ModelStore
         }
     }
 
-    /// <summary>Akar cache aplikasi: ~/.cache/tinta-studio (induk
-    /// CacheDir). Dengan override TINTA_MODEL_DIR, CacheDir menunjuk
-    /// langsung ke folder model khusus dan akarnya adalah induk
-    /// folder itu. Dipakai rencana Hapus Bersih (v0.7.11) agar jalur
-    /// cache tidak diduplikasi di tempat lain.</summary>
+    /// <summary>Akar cache aplikasi (induk CacheDir). Dengan
+    /// override TINTA_MODEL_DIR, CacheDir menunjuk langsung ke
+    /// folder model khusus dan akarnya adalah induk folder itu.
+    /// Tanpa override: resolver penanda lokasi (DataLocation) —
+    /// &lt;akar pindahan&gt;/cache bila pengguna memindahkan
+    /// data (v0.7.13), atau ~/.cache/tinta-studio bawaan. Dipakai
+    /// rencana Hapus Bersih agar jalur cache tidak diduplikasi di
+    /// tempat lain.</summary>
     public static string CacheRootDir
     {
         get
@@ -44,12 +47,8 @@ public static class ModelStore
             var env = Environment.GetEnvironmentVariable("TINTA_MODEL_DIR");
             if (!string.IsNullOrWhiteSpace(env))
                 return Path.GetDirectoryName(Path.GetFullPath(env))
-                    ?? Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                        ".cache", "tinta-studio");
-            return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".cache", "tinta-studio");
+                    ?? DataLocation.DefaultCacheRootDir;
+            return DataLocation.EffectiveCacheRootDir;
         }
     }
 

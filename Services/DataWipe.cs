@@ -1,9 +1,12 @@
 namespace TintaStudio.Services;
 
-/// <summary>Satu folder target Hapus Bersih: label manusiawi,
-/// jalur persis dari resolver aplikasi, keberadaan di disk, dan
-/// ukuran live dalam byte (0 bila tidak ada / tidak terbaca).</summary>
-public sealed record WipeTarget(string Label, string Path, bool Exists, long SizeBytes);
+/// <summary>Satu target Hapus Bersih: label manusiawi, jalur
+/// persis dari resolver aplikasi, keberadaan di disk, dan ukuran
+/// live dalam byte (0 bila tidak ada / tidak terbaca). Target
+/// umumnya folder; IsFile menandai target berkas tunggal
+/// (berkas penanda lokasi — dihapus terakhir).</summary>
+public sealed record WipeTarget(
+    string Label, string Path, bool Exists, long SizeBytes, bool IsFile = false);
 
 /// <summary>Rencana Hapus Bersih: daftar target + total ukuran.
 /// Dibangun dari resolver yang SAMA dengan yang dipakai aplikasi
@@ -28,10 +31,13 @@ public sealed record WipeResult(
     long FreedBytes);
 
 /// <summary>
-/// Hapus Bersih (v0.7.11): menghapus SELURUH data lokal Tinta
-/// Studio — folder konfigurasi (keys.json, settings.json,
-/// library.json, proyek &amp; cadangan yang tersimpan di dalamnya)
-/// dan folder cache model OCR. TIDAK menyentuh: berkas .exe
+/// Hapus Bersih (v0.7.11; mengikuti lokasi v0.7.13): menghapus
+/// SELURUH data lokal Tinta Studio — folder konfigurasi
+/// (keys.json, settings.json, library.json, proyek &amp; cadangan
+/// yang tersimpan di dalamnya) dan folder cache model OCR, di
+/// lokasi mana pun data itu tinggal sekarang (resolver penanda),
+/// ditambah sisa di lokasi bawaan lama dan berkas penandanya.
+/// TIDAK menyentuh: berkas .exe
 /// aplikasi (tidak bisa menghapus dirinya yang sedang berjalan),
 /// proyek .json/.cbz yang disimpan pengguna di folder lain, dan
 /// model Ollama (milik Ollama, di ~/.ollama/models — dipakai
@@ -41,14 +47,19 @@ public sealed record WipeResult(
 public static class DataWipe
 {
     /// <summary>Folder model Ollama — disebut di teks instruksi
-    /// sebagai yang TIDAK ikut terhapus (bukan target).</summary>
-    public static string OllamaModelsDir => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".ollama", "models");
+    /// sebagai yang TIDAK ikut terhapus (bukan target). Menunjuk
+    /// lokasi efektif: variabel OLLAMA_MODELS bila pengguna
+    /// memindahkannya, kalau tidak bawaan ~/.ollama/models.</summary>
+    public static string OllamaModelsDir => OllamaService.EffectiveModelsDir;
 
-    /// <summary>Bangun rencana dari resolver aplikasi saat ini.</summary>
+    /// <summary>Bangun rencana dari resolver aplikasi saat ini:
+    /// lokasi yang berlaku (mengikuti penanda lokasi v0.7.13)
+    /// + baris lokasi lama bawaan bila masih berisi data
+    /// + berkas penanda (terakhir) bila sedang pindahan.</summary>
     public static WipePlan BuildPlan() => BuildPlan(
-        AppConfig.ConfigDir, ModelStore.CacheRootDir);
+        AppConfig.ConfigDir, ModelStore.CacheRootDir,
+        DataLocation.DefaultConfigDir, DataLocation.DefaultCacheRootDir,
+        DataLocation.CurrentMarker is null ? null : DataLocation.MarkerPath);
 
     /// <summary>Bangun rencana dari dua akar eksplisit (dipakai tes
     /// dan UI): urutan tetap data aplikasi dulu, lalu cache model.
@@ -61,6 +72,59 @@ public static class DataWipe
             Measure("Folder data aplikasi — key API, pengaturan, proyek & cadangan", configDir),
             Measure("Folder cache model — model OCR yang sudah terunduh", cacheRootDir),
         });
+    }
+
+    /// <summary>Rencana gabungan (v0.7.13): dua target berlaku +
+    /// baris "lokasi lama" untuk folder bawaan yang BERBEDA dari
+    /// yang berlaku dan masih berisi data (sisa dari sebelum
+    /// pindah / sisa terkunci sesudah pindah) + berkas penanda
+    /// sebagai target terakhir bila <paramref name="markerPath"/>
+    /// diberikan. Ukuran baris data lama TIDAK menghitung berkas
+    /// penanda (penanda dihitung di barisnya sendiri, jadi total
+    /// tidak ganda). Tanpa penanda, hasilnya persis rencana dua
+    /// target seperti sebelumnya.</summary>
+    public static WipePlan BuildPlan(
+        string configDir, string cacheRootDir,
+        string defaultConfigDir, string defaultCacheRootDir,
+        string? markerPath)
+    {
+        var targets = new List<WipeTarget>
+        {
+            Measure("Folder data aplikasi — key API, pengaturan, proyek & cadangan", configDir),
+            Measure("Folder cache model — model OCR yang sudah terunduh", cacheRootDir),
+        };
+        if (markerPath is not null)
+        {
+            if (!DataLocation.PathsEqual(defaultConfigDir, configDir))
+            {
+                long size = DirectorySize(defaultConfigDir);
+                // Penanda tinggal di folder data bawaan: keluarkan
+                // ukurannya dari baris ini (dihitung di baris penanda).
+                if (DataLocation.IsInside(markerPath, defaultConfigDir)
+                    && File.Exists(markerPath))
+                    size = Math.Max(0, size - new FileInfo(markerPath).Length);
+                if (Directory.Exists(defaultConfigDir) && size > 0)
+                    targets.Add(new WipeTarget(
+                        "Folder data aplikasi — lokasi lama (bawaan), sisa sebelum pindah",
+                        defaultConfigDir, true, size));
+            }
+            if (!DataLocation.PathsEqual(defaultCacheRootDir, cacheRootDir))
+            {
+                long size = DirectorySize(defaultCacheRootDir);
+                if (Directory.Exists(defaultCacheRootDir) && size > 0)
+                    targets.Add(new WipeTarget(
+                        "Folder cache model — lokasi lama (bawaan), sisa sebelum pindah",
+                        defaultCacheRootDir, true, size));
+            }
+            bool markerExists = File.Exists(markerPath);
+            targets.Add(new WipeTarget(
+                "Berkas penanda lokasi (location.json) — dihapus terakhir; " +
+                "aplikasi kembali ke lokasi bawaan",
+                markerPath, markerExists,
+                markerExists ? new FileInfo(markerPath).Length : 0,
+                IsFile: true));
+        }
+        return new WipePlan(targets);
     }
 
     private static WipeTarget Measure(string label, string path)
@@ -116,6 +180,25 @@ public static class DataWipe
         long freed = 0;
         foreach (var target in plan.Targets)
         {
+            if (target.IsFile)
+            {
+                if (!target.Exists || !File.Exists(target.Path))
+                {
+                    absent.Add(target);
+                    continue;
+                }
+                try
+                {
+                    File.Delete(target.Path);
+                    deleted.Add(target);
+                    freed += target.SizeBytes;
+                }
+                catch (Exception ex)
+                {
+                    errors.Add($"{target.Path}: {ex.Message}");
+                }
+                continue;
+            }
             if (!target.Exists || !Directory.Exists(target.Path))
             {
                 absent.Add(target);

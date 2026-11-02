@@ -11,6 +11,61 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.7.13 — Lokasi Data & Model bisa dipindah + LM Studio setara Ollama
+
+Data aplikasi & model OCR kini bisa tinggal di folder mana pun,
+di disk mana pun — dan pengguna baru ditawari memilihnya sejak
+jalan pertama:
+
+- **Penanda lokasi**: resolver path membaca berkas kecil
+  `location.json` di lokasi bawaan; isinya menunjuk folder basis
+  baru (`<basis>/config` + `<basis>/cache`). Tanpa penanda,
+  perilaku persis seperti sebelumnya (folder profil pengguna).
+  Override env `TINTA_CONFIG_DIR`/`TINTA_MODEL_DIR` tetap menang.
+- **Seksi "Lokasi Data & Model"** (dialog Pengaturan Key &
+  Model): lokasi berlaku + total data live, "Pilih Folder…" (free
+  space tujuan ditampilkan), rencana pindah ditampilkan dulu
+  (rename satu volume / salin-verifikasi-hapus SHA-256 lintas
+  volume), eksekusi async dengan progres + batal, dan
+  "Kembalikan ke Bawaan". Teksnya jujur: penanda kecil tetap
+  tinggal di lokasi bawaan, dan pilihan ini **tidak mengunci** —
+  bisa diganti kapan pun dari seksi yang sama.
+- **Penawar jalan pertama**: sekali saja, saat data bawaan masih
+  nyaris kosong — "Pakai Bawaan Saja" atau "Pilih Folder…";
+  sesudah dipilih tidak pernah tampil lagi, dan keduanya bukan
+  keputusan permanen.
+- **Hapus Bersih mengikuti**: daftarnya dibangun dari lokasi yang
+  berlaku, ditambah baris "lokasi lama" untuk sisa di lokasi
+  bawaan, ditambah berkas penandanya sendiri (dihapus terakhir —
+  sesudah bersih aplikasi kembali ke bawaan).
+- **Lokasi Model Ollama**: lokasi efektif `OLLAMA_MODELS`
+  ditampilkan + bisa dipindah (variabel pengguna ditetapkan &
+  diverifikasi baca-balik, isi folder ditawarkan ikut pindah);
+  berlaku sesudah Ollama dimulai ulang dari tray — aplikasi tidak
+  membunuh proses Ollama.
+- **Kartu LM Studio setara Ollama**: keterangan penjelas di bawah
+  judul + seksi status "Instal Instan — LM Studio di PC Ini":
+  probe otomatis `GET /v1/models` (menghormati kolom Base URL)
+  → server jalan (nama model yang dimuat ditampilkan) / terpasang
+  tapi server mati (tombol "Buka LM Studio" + teks jujur server
+  hanya bisa dinyalakan dari dalam LM Studio) / belum terpasang
+  (tombol membuka halaman unduh resmi lmstudio.ai — tautan
+  pemasang berubah tiap versi, jadi tidak diunduh langsung).
+- Tes: **158 total — 157 lolos, 0 gagal, 1 skip** (29 tes baru:
+  21 lokasi data + 8 LM Studio; skip = loopback sandbox yang
+  sama). Exe win-x64 single-file **124.891.729 byte**.
+  Screenshot: `docs/v0713-lokasi-data.png`,
+  `docs/v0713-hapus-bersih.png`, `docs/v0713-lm-studio.png`.
+- Batas jujur: berkas yang terkunci proses berjalan di Windows
+  sungguhan tidak bisa dibuktikan penuh dari VM — yang terkunci
+  gagal per berkas, dilaporkan apa adanya, dan menjadi utuh
+  sesudah mulai ulang (penanda hanya ditulis bila pindahan
+  selesai). Penetapan `OLLAMA_MODELS` scope User adalah no-op di
+  Linux VM ini; kontrak baca-baliknya teruji di sini, efek
+  penuhnya di Windows.
+
+Di bawah ini catatan v0.7.12.
+
 ## Status: v0.7.12 — judul seksi Hapus Bersih dipersingkat
 
 v0.7.12: judul seksi penghapusan di dialog Pengaturan Key & Model

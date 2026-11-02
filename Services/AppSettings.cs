@@ -41,6 +41,17 @@ public sealed class AppSettings
     /// <summary>Pilihan garis tepi efektif (bawaan true).</summary>
     public bool EffectiveCleanLineProtect => CleanLineProtect ?? true;
 
+    /// <summary>Apakah penawaran memilih lokasi data saat jalan
+    /// pertama (v0.7.13) sudah pernah ditampilkan? Nullable dengan
+    /// alasan yang sama seperti CleanLineProtect (false akan
+    /// dibuang serializer WhenWritingDefault); null = belum pernah
+    /// ditawari. Flag ini HANYA mematikan penawaran — lokasi tetap
+    /// bisa diganti kapan pun dari seksi Lokasi Data &amp; Model.</summary>
+    public bool? LocationOfferShown { get; set; }
+
+    /// <summary>Status penawaran lokasi efektif (bawaan false).</summary>
+    public bool EffectiveLocationOfferShown => LocationOfferShown ?? false;
+
     public Dictionary<string, ProviderSettings> Providers { get; set; } = new();
 
     /// <summary>Pengaturan penyedia ini; dibuat dengan nilai bawaan
@@ -83,8 +94,11 @@ public static class AppConfig
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingDefault,
     };
 
-    /// <summary>Direktori konfigurasi: env TINTA_CONFIG_DIR atau
-    /// ~/.config/tinta-studio (sama dengan basis ProjectStore).</summary>
+    /// <summary>Direktori konfigurasi: env TINTA_CONFIG_DIR bila
+    /// diatur (override pengembang — mengabaikan penanda);
+    /// selain itu resolver penanda lokasi (DataLocation):
+    /// &lt;akar pindahan&gt;/config bila pengguna memindahkan
+    /// data, atau ~/.config/tinta-studio bawaan.</summary>
     public static string ConfigDir
     {
         get
@@ -92,9 +106,7 @@ public static class AppConfig
             var env = Environment.GetEnvironmentVariable("TINTA_CONFIG_DIR");
             return !string.IsNullOrWhiteSpace(env)
                 ? env
-                : Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                    ".config", "tinta-studio");
+                : DataLocation.EffectiveConfigDir;
         }
     }
 
