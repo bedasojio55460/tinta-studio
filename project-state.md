@@ -1405,3 +1405,96 @@
     (3) watermark situs ("cYanmaGentaYellow", "ASURASCANS")
     tetap terbaca sebagai blok — di luar keluhan & aturan
     saringan yang aman.
+- 2026-11-02: **v0.7.16 — Model bawaan mati diganti + migrasi,
+  peringatan halaman belum dibersihkan, toggle Kotak
+  Typesetting** (tiga temuan uji PC pemilik atas v0.7.15;
+  lampu hijau eksplisit; TANPA unggah/GitHub).
+  - MODEL MATI + MIGRASI: Groq `llama-3.3-70b-versatile`
+    dimatikan untuk tier gratis/developer per 2026-08-16
+    (pemilik kena HTTP 404, key sah) → bawaan Groq kini
+    `openai/gpt-oss-120b` (pengganti resmi halaman deprecation
+    Groq; terverifikasi model produksi dgn kuota developer di
+    console.groq.com/docs/models). Satu-satunya kemunculan ID
+    mati sebagai bawaan: Services/Translate.cs Providers.
+    Migrasi: `TranslateService.RetiredModels` (pasangan
+    penyedia+ID mati → pengganti, kecocokan persis) +
+    `AppSettings.MigrateRetiredModels()` dipanggil dari
+    EnsureDefaults sesudah bawaan terisi — entri tersimpan
+    yang PERSIS ID mati diganti senyap; kustom tidak disentuh;
+    BaseUrl utuh; idempoten; bertahan lewat SaveSettings
+    berikutnya. Tak ada mekanisme log aplikasi → migrasi
+    senyap sesuai brief.
+  - AUDIT (bukti diambil 2026-11-02): OpenRouter
+    `meta-llama/llama-3.3-70b-instruct:free` MATI — API publik
+    /api/v1/models (451 model) tidak memuatnya; tak ada llama
+    `:free` sama sekali; varian berbayar masih ada →
+    bawaan diganti `google/gemma-4-31b-it:free` (pricing 0/0,
+    konteks 262.144, terverifikasi di katalog) + migrasi ID
+    mati. Gemini `gemini-2.5-flash` HIDUP — halaman model
+    resmi Google AI (diperbarui 2026-10-28) masih
+    mencantumkannya di seksinya sendiri, bukan daftar
+    shut-down → tidak diubah.
+  - PERINGATAN BELUM BERSIH: fungsi murni
+    `TypesetService.ShouldWarnPageNotCleaned(hasBlocks,
+    hasCleanWork, hasStoredCleanedPage)`; VM
+    `ShowUncleanedWarning` dihitung ulang di
+    LoadTypesetForCurrentPage (dipanggil tiap ganti halaman &
+    masuk Typesetting); hasCleanWork = CleanService.HasWork
+    (ops + sapuan manual); tersimpan =
+    `CleanStore.HasStoredCleanedPage` baru (cek berkas pola
+    p{index}-*.png di folder bab CleanStore — tanpa membangun).
+    Panel amber di atas kanvas Typesetting + tombol "Ke
+    Halaman Bersihkan" → ShowClean(). Terapkan Otomatis
+    (halaman: keadaan halaman aktif; bab: halaman mana pun
+    yang memenuhi syarat) menambahkan pengingat ke StatusText,
+    tidak memblokir. Bar petunjuk Terjemahan: "Deteksi →
+    Bersihkan → Terjemahkan → Poles AI → Terapkan Otomatis di
+    Typesetting".
+  - TOGGLE KOTAK TYPESETTING: VM `TypesetShowBoxes` (bawaan
+    hidup; kait tangkapan layar TINTA_TYPESET_BOXES=0 pola
+    TINTA_*); ToggleButton "Kotak" di toolbar sebelum Asli.
+    Mati → RebuildOverlay kosong (bitmap final murni),
+    OnStagePointerPressed selalu pan, kursor hover netral —
+    lewat fungsi murni `TypesetService.BlockFramesVisible` /
+    `BlockEditingEnabled`. Hidup = perilaku lama persis.
+  - Tes: **216 total — 215 lolos, 0 gagal, 1 skip** (runner
+    konsol dari TintaStudio.Tests/bin; XML
+    tmp/xunit-results-v0716.xml; log tmp/xunit-v0716.log;
+    baseline v0.7.15: 197/196/0/1). CATATAN PROSES (koreksi
+    terbuka): dua run awal berjalan TUMPANG-TINDIH (suite
+    paralel + build + publish bersamaan di VM kecil) dan
+    memunculkan kegagalan lingkungan yang berpencar — sekali
+    SevenZip_Cb7 (proses 7z ENOENT), sekali
+    CleanStore_StoredPage_Check (balapan env TINTA_CONFIG_DIR
+    antar-kelas paralel) — tes CleanStore lalu diperkeras
+    (env ditegaskan tepat sebelum tiap akses CleanStore) dan
+    run ulang SOLO tanpa pekerjaan bersamaan hijau penuh
+    216/215/0/1 exit 0; angka itulah yang berlaku. Baru V0716Tests 19:
+    bawaan 3 penyedia, bawaan segar hidup, migrasi Groq,
+    migrasi OpenRouter, kustom tak tersentuh (termasuk ID
+    mati di entri penyedia LAIN tak dimigrasi + BaseUrl utuh),
+    idempoten, muat berkas lama + persisten sesudah simpan,
+    matriks peringatan 7 baris, CleanStore tersimpan
+    (indeks cocok vs lain), logika toggle 2 baris.
+  - Build Release bersih 0/0; publish win-x64 single-file
+    (IncludeNativeLibrariesForSelfExtract): **TintaStudio.exe
+    124.957.265 byte** PE32+ GUI di
+    ~/workspace/projects/tinta-studio-publish-v0716/; string
+    "v0.7.16", kedua model baru, teks peringatan + tombol
+    terverifikasi tertanam (strings UTF-16); ID mati tersisa
+    tepat 1 kemunculan = entri RetiredModels untuk migrasi.
+    VERSION + footer → 0.7.16 ("Model Baru, Peringatan Bersih
+    & Kotak Review"). Screenshot Xvfb (bab demo, konfigurasi
+    tmp/v0716-shot-config): tmp/tinta-v0716-typeset-warning.png
+    (panel peringatan + tombol, toggle Kotak hidup, blok #1
+    terpilih dgn 8 pegangan) & tmp/tinta-v0716-typeset-nobox.png
+    (Kotak mati: kanvas murni tanpa bingkai/lencana/pegangan).
+    Commit lokal, tidak di-push, tidak diunggah.
+  - Batas jujur: (1) migrasi di ingatan saat muat, persisten
+    di disk pada simpan berikutnya — ID mati tak pernah
+    terpakai lagi sejak muat pertama; (2) klik "Ke Halaman
+    Bersihkan"/toggle terverifikasi build + screenshot dua
+    keadaan; klik UI sungguhan di Windows menunggu PC pemilik;
+    (3) halaman bersih tersimpan yang basi (ops di-undo semua)
+    menekan peringatan sesuai rumus brief — render tetap
+    memakai bitmap tersimpan itu, konsisten dengan ceknya.

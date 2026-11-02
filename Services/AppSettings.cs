@@ -76,11 +76,41 @@ public sealed class AppSettings
     {
         foreach (var p in TranslateService.Providers)
             For(p.Id);
+        MigrateRetiredModels();
         if (TranslateService.Providers.All(p => p.Id != Provider))
             Provider = TranslateService.GeminiId;
         if (TargetLanguage is not ("id" or "en"))
             TargetLanguage = "id";
         RequestDelaySeconds = Math.Clamp(RequestDelaySeconds, 0, 600);
+    }
+
+    /// <summary>
+    /// Migrasi model mati (v0.7.16): entri penyedia yang model
+    /// tersimpannya PERSIS ID yang sudah dimatikan penyedia
+    /// (lihat <see cref="TranslateService.RetiredModels"/>) diganti
+    /// senyap ke pengganti resminya. Berjalan dari EnsureDefaults
+    /// SESUDAH bawaan terisi — bawaan baru tidak pernah berupa ID
+    /// mati, jadi yang berubah hanya entri warisan berkas lama.
+    /// Model kustom (apa pun selain ID mati persis) tidak pernah
+    /// disentuh; BaseUrl tidak pernah diubah. Idempoten: sesudah
+    /// diganti, model tidak lagi cocok dengan ID mati, dan hasil
+    /// migrasi bertahan lewat SaveSettings berikutnya. Mengembalikan
+    /// jumlah entri yang dimigrasikan.
+    /// </summary>
+    public int MigrateRetiredModels()
+    {
+        int changed = 0;
+        foreach (var r in TranslateService.RetiredModels)
+        {
+            if (Providers.TryGetValue(r.ProviderId, out var ps)
+                && TranslateService.ReplacementForRetired(r.ProviderId, ps.Model) is { } repl
+                && ps.Model != repl)
+            {
+                ps.Model = repl;
+                changed++;
+            }
+        }
+        return changed;
     }
 }
 

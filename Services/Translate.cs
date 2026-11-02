@@ -117,9 +117,9 @@ public sealed class TranslateService
         new ProviderInfo(GeminiId, "Gemini", true, ProviderKind.Gemini,
             "https://generativelanguage.googleapis.com/v1beta", "gemini-2.5-flash"),
         new ProviderInfo(GroqId, "Groq", true, ProviderKind.OpenAiCompatible,
-            "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile"),
+            "https://api.groq.com/openai/v1", "openai/gpt-oss-120b"),
         new ProviderInfo(OpenRouterId, "OpenRouter", true, ProviderKind.OpenAiCompatible,
-            "https://openrouter.ai/api/v1", "meta-llama/llama-3.3-70b-instruct:free"),
+            "https://openrouter.ai/api/v1", "google/gemma-4-31b-it:free"),
         new ProviderInfo(OllamaId, "Ollama (lokal)", false, ProviderKind.OpenAiCompatible,
             "http://localhost:11434/v1", "llama3.1"),
         new ProviderInfo(LmStudioId, "LM Studio (lokal)", false, ProviderKind.OpenAiCompatible,
@@ -135,6 +135,50 @@ public sealed class TranslateService
     public static ProviderInfo ProviderById(string id) =>
         Providers.FirstOrDefault(p => p.Id == id)
         ?? throw new ArgumentException($"Penyedia tidak dikenal: '{id}'.");
+
+    /// <summary>Satu model yang sudah dimatikan penyedianya beserta
+    /// pengganti resminya (dasar migrasi pengaturan lama).</summary>
+    public sealed record RetiredModel(
+        string ProviderId, string DeadModel, string ReplacementModel);
+
+    /// <summary>
+    /// Model yang sudah DIMATIKAN penyedia (audit v0.7.16) —
+    /// pengaturan lama yang masih menyimpan ID ini dimigrasikan
+    /// otomatis saat dimuat, karena memanggilnya hanya membalas
+    /// HTTP 404 "model does not exist":
+    /// • Groq mematikan <c>llama-3.3-70b-versatile</c> untuk tier
+    ///   gratis/developer per 2026-08-16 (kini khusus Enterprise /
+    ///   Contact Sales); pengganti resmi di halaman deprecation
+    ///   Groq: <c>openai/gpt-oss-120b</c>.
+    /// • OpenRouter menghapus <c>meta-llama/llama-3.3-70b-instruct:free</c>
+    ///   dari katalognya — terverifikasi dari API publik
+    ///   /api/v1/models pada 2026-11-02 (451 model; varian itu —
+    ///   dan semua llama :free — sudah tidak ada); pengganti
+    ///   gratis yang setara &amp; masih hidup:
+    ///   <c>google/gemma-4-31b-it:free</c>.
+    /// Gemini <c>gemini-2.5-flash</c> diaudit pada tanggal yang
+    /// sama dan MASIH HIDUP (terdaftar di halaman model resmi
+    /// Google AI, diperbarui 2026-10-28) → tidak diganti dan
+    /// tidak masuk daftar ini.
+    /// </summary>
+    public static IReadOnlyList<RetiredModel> RetiredModels { get; } = new[]
+    {
+        new RetiredModel(GroqId, "llama-3.3-70b-versatile", "openai/gpt-oss-120b"),
+        new RetiredModel(OpenRouterId, "meta-llama/llama-3.3-70b-instruct:free",
+            "google/gemma-4-31b-it:free"),
+    };
+
+    /// <summary>Pengganti resmi untuk model mati penyedia ini;
+    /// null bila pasangan (penyedia, model) tidak dimatikan.
+    /// Kecocokan PERSIS (ordinal) — model kustom pengguna yang
+    /// mirip tapi tidak identik tidak pernah dianggap mati.</summary>
+    public static string? ReplacementForRetired(string providerId, string model)
+    {
+        foreach (var r in RetiredModels)
+            if (r.ProviderId == providerId && r.DeadModel == model)
+                return r.ReplacementModel;
+        return null;
+    }
 
     public static TargetLanguage TargetByCode(string code) =>
         TargetLanguages.FirstOrDefault(t => t.Code == code)

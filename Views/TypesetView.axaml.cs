@@ -88,6 +88,7 @@ public partial class TypesetView : UserControl
         InitializeComponent();
         AutoPageButton.Click += (_, _) => _vm?.ApplyAutoTypesetCurrentPage();
         AutoChapterButton.Click += (_, _) => _vm?.ApplyAutoTypesetChapter();
+        GoCleanButton.Click += (_, _) => _vm?.ShowClean();
         OverlayCanvas.SizeChanged += (_, _) => RebuildOverlay();
         StageGrid.SizeChanged += (_, _) => ApplyViewport();
         StageGrid.PointerPressed += OnStagePointerPressed;
@@ -145,7 +146,8 @@ public partial class TypesetView : UserControl
             Dispatcher.UIThread.Post(ApplyViewport);
         }
         else if (e.PropertyName is nameof(MainWindowViewModel.SelectedTypesetBlock)
-            or nameof(MainWindowViewModel.TypesetCanvasBitmap))
+            or nameof(MainWindowViewModel.TypesetCanvasBitmap)
+            or nameof(MainWindowViewModel.TypesetShowBoxes))
             Dispatcher.UIThread.Post(RebuildOverlay);
     }
 
@@ -246,6 +248,17 @@ public partial class TypesetView : UserControl
         var pt = ToPagePoint(pos);
         if (pt is null)
             return;
+        // Toggle "Kotak" mati (v0.7.16): tidak ada suntingan dari
+        // kanvas — setiap tekanan hanya menggeser tampilan (pan),
+        // supaya tidak ada perubahan tak terlihat saat review.
+        if (!TypesetService.BlockEditingEnabled(vm.TypesetShowBoxes))
+        {
+            _panning = true;
+            _panLast = pos;
+            e.Pointer.Capture(StageGrid);
+            e.Handled = true;
+            return;
+        }
         // Pegangan kotak terpilih didahulukan dari hit-test badan:
         // tarik sudut/tepi = ubah ukuran.
         if (vm.SelectedTypesetBlock is { } sel)
@@ -338,7 +351,9 @@ public partial class TypesetView : UserControl
     private void UpdateHoverCursor(PointerEventArgs e)
     {
         var vm = _vm;
-        if (vm?.SelectedTypesetBlock is not { } sel)
+        if (vm is null
+            || !TypesetService.BlockFramesVisible(vm.TypesetShowBoxes)
+            || vm.SelectedTypesetBlock is not { } sel)
         {
             StageGrid.Cursor = Cursor.Default;
             return;
@@ -392,6 +407,10 @@ public partial class TypesetView : UserControl
         OverlayCanvas.Children.Clear();
         var vm = _vm;
         if (vm is null || !_vp.HasLayout)
+            return;
+        // Toggle "Kotak" mati (v0.7.16): overlay dikosongkan —
+        // kanvas menampilkan bitmap final murni untuk review.
+        if (!TypesetService.BlockFramesVisible(vm.TypesetShowBoxes))
             return;
         int pageW = vm.CurrentPageWidth, pageH = vm.CurrentPageHeight;
         double cw = OverlayCanvas.Bounds.Width, ch = OverlayCanvas.Bounds.Height;

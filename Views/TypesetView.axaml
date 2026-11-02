@@ -21,6 +21,8 @@
                            FontSize="13" FontWeight="SemiBold"
                            TextTrimming="CharacterEllipsis" Margin="12,0" />
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                    <ToggleButton Content="Kotak" IsChecked="{Binding TypesetShowBoxes}"
+                                  ToolTip.Tip="Tampilkan/sembunyikan kotak blok (mati = gambar final murni untuk review; klik/seret blok nonaktif)" />
                     <ToggleButton Content="Asli" IsChecked="{Binding TypesetShowOriginal}"
                                   ToolTip.Tip="Bandingkan: tampilkan halaman asli" />
                     <ToggleButton Content="Bersih" IsChecked="{Binding TypesetShowClean}"
@@ -38,6 +40,22 @@
                 BorderBrush="#26292F" BorderThickness="0,0,0,1" Padding="10,5">
             <TextBlock Foreground="#8A939E" FontSize="12" TextWrapping="Wrap"
                        Text="Jalankan Terapkan Otomatis sesudah teks final (termasuk Poles AI) — ukuran &amp; posisi diukur dari teks terakhir." />
+        </Border>
+
+        <!-- Panel peringatan: halaman belum dibersihkan (v0.7.16).
+             Tampil hanya bila halaman aktif punya blok tapi belum
+             ada pekerjaan bersih sama sekali — teks terjemahan
+             tergambar menimpa teks asli. -->
+        <Border DockPanel.Dock="Top" Background="#2E2410"
+                BorderBrush="#8A6D1F" BorderThickness="0,0,0,1" Padding="10,7"
+                IsVisible="{Binding ShowUncleanedWarning}">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Foreground="#F2CE84" FontSize="12.5" TextWrapping="Wrap"
+                           VerticalAlignment="Center"
+                           Text="Halaman ini belum dibersihkan — teks asli masih ada dan akan tertimpa teks terjemahan. Bersihkan dulu lewat halaman Bersihkan." />
+                <Button Grid.Column="1" x:Name="GoCleanButton" Content="Ke Halaman Bersihkan"
+                        Margin="10,0,0,0" VerticalAlignment="Center" />
+            </Grid>
         </Border>
 
         <Grid ColumnDefinitions="196,*,368" Margin="12">

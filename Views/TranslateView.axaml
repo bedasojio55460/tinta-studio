@@ -72,7 +72,7 @@
         <Border DockPanel.Dock="Top" Background="#101216"
                 BorderBrush="#26292F" BorderThickness="0,0,0,1" Padding="10,5">
             <TextBlock Foreground="#8A939E" FontSize="12" TextWrapping="Wrap"
-                       Text="Urutan disarankan: Terjemahkan → Poles AI → Terapkan Otomatis (halaman Typesetting). Poles AI memperhalus bahasa terjemahan — perlu penyedia aktif; teks sebelum poles dicadangkan otomatis dan bisa dikembalikan lewat Urungkan Poles." />
+                       Text="Urutan disarankan: Deteksi → Bersihkan → Terjemahkan → Poles AI → Terapkan Otomatis di Typesetting. Bersihkan menghapus teks asli dulu supaya tidak tertimpa terjemahan. Poles AI memperhalus bahasa terjemahan — perlu penyedia aktif; teks sebelum poles dicadangkan otomatis dan bisa dikembalikan lewat Urungkan Poles." />
         </Border>
 
         <Grid ColumnDefinitions="196,*,430" Margin="12">

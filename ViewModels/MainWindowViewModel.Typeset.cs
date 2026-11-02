@@ -292,6 +292,12 @@ public sealed partial class MainWindowViewModel
     private Bitmap? _typesetBaseBitmap;
     private bool _typesetShowOriginal;
     private bool _typesetShowClean;
+    // Nilai awal toggle "Kotak" (v0.7.16): hidup; kait tangkapan
+    // layar TINTA_TYPESET_BOXES=0 mematikannya (pola kait TINTA_*
+    // yang sama seperti TINTA_VIEW/TINTA_SETTINGS).
+    private bool _typesetShowBoxes =
+        Environment.GetEnvironmentVariable("TINTA_TYPESET_BOXES") != "0";
+    private bool _showUncleanedWarning;
     private int _typesetRefreshGen;
     private TypesetBlockItemViewModel? _selectedTypesetBlock;
 
@@ -340,6 +346,59 @@ public sealed partial class MainWindowViewModel
         }
     }
 
+    /// <summary>
+    /// Toggle "Kotak" Typesetting (v0.7.16, pola yang sama seperti
+    /// Deteksi &amp; OCR): hidup = bingkai blok, lencana nomor, dan
+    /// pegangan tarik digambar dan blok bisa diseret/diubah ukuran
+    /// dari kanvas; mati = kanvas menampilkan bitmap final MURNI
+    /// untuk menilai hasil, dan klik/seret blok dinonaktifkan agar
+    /// tidak ada suntingan tak terlihat (geser tampilan &amp; zoom
+    /// tetap jalan). Bawaan: hidup.
+    /// </summary>
+    public bool TypesetShowBoxes
+    {
+        get => _typesetShowBoxes;
+        set => Set(ref _typesetShowBoxes, value);
+    }
+
+    /// <summary>
+    /// Panel peringatan "halaman belum dibersihkan" di Typesetting
+    /// (v0.7.16): benar bila halaman aktif punya blok tapi belum
+    /// ada pekerjaan bersih sama sekali — teks terjemahan akan
+    /// tergambar menimpa teks asli. Dihitung ulang tiap halaman
+    /// Typesetting dimuat / halaman berganti.
+    /// </summary>
+    public bool ShowUncleanedWarning
+    {
+        get => _showUncleanedWarning;
+        private set => Set(ref _showUncleanedWarning, value);
+    }
+
+    /// <summary>Akhiran teks status untuk Terapkan Otomatis pada
+    /// halaman yang belum dibersihkan (peringatan saja, tidak
+    /// memblokir — keputusan tetap di pengguna).</summary>
+    internal const string UncleanedReminderText =
+        " Pengingat: halaman ini belum dibersihkan — teks asli masih ada dan"
+        + " tertimpa teks terjemahan; bersihkan dulu lewat halaman Bersihkan"
+        + " bila hasil akhir yang diinginkan.";
+
+    /// <summary>Hitung ulang keadaan peringatan belum-bersih untuk
+    /// halaman aktif dari keadaan proyek + CleanStore saat ini.</summary>
+    private void RefreshUncleanedWarning()
+    {
+        bool warn = false;
+        var chapter = CurrentChapter;
+        var page = CurrentProjectPage();
+        if (chapter is not null && page is not null)
+        {
+            warn = TypesetService.ShouldWarnPageNotCleaned(
+                page.Blocks.Count > 0,
+                CleanService.HasWork(page),
+                CleanStore.HasStoredCleanedPage(chapter, page));
+        }
+        ShowUncleanedWarning = warn;
+    }
+
     public Bitmap? TypesetFinalBitmap
     {
         get => _typesetFinalBitmap;
@@ -382,6 +441,7 @@ public sealed partial class MainWindowViewModel
     /// <summary>Muat ulang daftar blok typeset untuk halaman aktif.</summary>
     public void LoadTypesetForCurrentPage()
     {
+        RefreshUncleanedWarning();
         TypesetBlocks.Clear();
         var page = CurrentProjectPage();
         if (page is not null)
@@ -457,9 +517,10 @@ public sealed partial class MainWindowViewModel
         SaveProject();
         LoadTypesetForCurrentPage();
         _ = RefreshTypesetBitmapsAsync();
-        StatusText = n > 0
+        StatusText = (n > 0
             ? $"Typeset otomatis pintar: {n} blok halaman ini diisi (tengah bubble, ukuran seragam)."
-            : "Semua blok berterjemahan halaman ini sudah di-typeset.";
+            : "Semua blok berterjemahan halaman ini sudah di-typeset.")
+            + (ShowUncleanedWarning ? UncleanedReminderText : "");
     }
 
     /// <summary>Terapkan typeset otomatis ke seluruh bab
@@ -473,9 +534,20 @@ public sealed partial class MainWindowViewModel
         SaveProject();
         LoadTypesetForCurrentPage();
         _ = RefreshTypesetBitmapsAsync();
-        StatusText = n > 0
+        bool anyUncleaned = CurrentChapter is { } ch
+            && _projectChapter.Pages.Any(p =>
+                TypesetService.ShouldWarnPageNotCleaned(
+                    p.Blocks.Count > 0,
+                    CleanService.HasWork(p),
+                    CleanStore.HasStoredCleanedPage(ch, p)));
+        StatusText = (n > 0
             ? $"Typeset otomatis pintar satu bab: {n} blok diisi (tengah bubble, ukuran seragam)."
-            : "Semua blok berterjemahan di bab ini sudah di-typeset.";
+            : "Semua blok berterjemahan di bab ini sudah di-typeset.")
+            + (anyUncleaned
+                ? " Pengingat: masih ada halaman yang belum dibersihkan — teks"
+                  + " aslinya tertimpa teks terjemahan; bersihkan lewat halaman"
+                  + " Bersihkan bila hasil akhir yang diinginkan."
+                : "");
     }
 
     /// <summary>Hit-test kanvas: blok teratas (tergambar terakhir)

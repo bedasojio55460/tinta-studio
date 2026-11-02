@@ -491,6 +491,29 @@ public static class CleanStore
 {
     public static string StoreDir => Path.Combine(AppConfig.ConfigDir, "cleaned");
 
+    /// <summary>Apakah ada berkas halaman bersih tersimpan untuk
+    /// halaman ini (gambar dasar hasil operasi bersih yang pernah
+    /// dibangun &amp; di-cache di StoreDir)? Murni cek keberadaan
+    /// berkas pola <c>p{index}-*.png</c> di folder bab ini — tanpa
+    /// membangun apa pun. Dipakai keputusan peringatan Typesetting
+    /// (v0.7.16).</summary>
+    public static bool HasStoredCleanedPage(Chapter chapter, ProjectPage page)
+    {
+        var dir = Path.Combine(StoreDir,
+            Path.GetFileNameWithoutExtension(
+                ProjectStore.PathFor(chapter.SourcePath)));
+        if (!Directory.Exists(dir))
+            return false;
+        try
+        {
+            return Directory.GetFiles(dir, $"p{page.Index}-*.png").Length > 0;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>Tanda tangan gambar dasar satu halaman: operasi per
     /// blok + sapuan penghapus latar (jenis sapuan lain dikomposit
     /// langsung dan tidak memengaruhi gambar dasar).</summary>

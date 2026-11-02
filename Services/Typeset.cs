@@ -88,6 +88,35 @@ public static class TypesetService
             block.Y + style.Dy + Math.Max(8, block.Height + style.Dh));
 
     /// <summary>
+    /// Keputusan panel peringatan "halaman belum dibersihkan" di
+    /// Typesetting (v0.7.16, fungsi murni): tampil HANYA bila
+    /// halaman punya blok tapi belum ada pekerjaan bersih sama
+    /// sekali — tanpa operasi bersih/sapuan DAN tanpa halaman
+    /// bersih tersimpan di CleanStore. Tanpa blok tidak ada yang
+    /// tertimpa, jadi tidak ada peringatan; halaman yang sudah
+    /// dibersihkan (atau punya hasil bersih tersimpan) juga tidak.
+    /// </summary>
+    public static bool ShouldWarnPageNotCleaned(
+        bool hasBlocks, bool hasCleanWork, bool hasStoredCleanedPage) =>
+        hasBlocks && !hasCleanWork && !hasStoredCleanedPage;
+
+    /// <summary>
+    /// Apakah bingkai blok digambar di kanvas Typesetting menurut
+    /// toggle "Kotak" (v0.7.16): mati = kanvas menampilkan bitmap
+    /// final murni untuk review, tanpa bingkai/lencana/pegangan.
+    /// </summary>
+    public static bool BlockFramesVisible(bool showBoxes) => showBoxes;
+
+    /// <summary>
+    /// Apakah klik/seret blok di kanvas Typesetting aktif menurut
+    /// toggle "Kotak" (v0.7.16): selama kotak disembunyikan,
+    /// suntingan blok dari kanvas dinonaktifkan agar tidak ada
+    /// perubahan tak terlihat; geser tampilan (pan) dan zoom
+    /// tetap jalan karena bukan suntingan.
+    /// </summary>
+    public static bool BlockEditingEnabled(bool showBoxes) => showBoxes;
+
+    /// <summary>
     /// Gambar halaman final: salinan <paramref name="basePage"/> +
     /// semua blok berterjemahan digambar. Blok tanpa terjemahan
     /// dilewati. Bitmap masukan tidak diubah.

@@ -11,6 +11,77 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.7.16 — Model bawaan mati diganti + migrasi, peringatan halaman belum dibersihkan & toggle Kotak Typesetting
+
+Tiga perbaikan dari temuan uji PC pemilik atas v0.7.15:
+
+- **Model bawaan Groq mati → diganti + DIMIGRASI.** Groq
+  mematikan `llama-3.3-70b-versatile` untuk tier
+  gratis/developer per 2026-08-16 (pemilik kena HTTP 404 "model
+  does not exist" padahal key-nya sah); bawaan Groq kini
+  **`openai/gpt-oss-120b`** — pengganti resmi di halaman
+  deprecation Groq, model produksi dengan kuota developer.
+  Pengaturan lama yang masih menyimpan ID mati itu **diganti
+  otomatis saat dimuat** (senyap, idempoten, persisten lewat
+  simpan berikutnya); model kustom pengguna tidak pernah
+  disentuh dan BaseUrl tidak berubah.
+- **Audit dua bawaan lain (bukti 2026-11-02):** OpenRouter
+  `meta-llama/llama-3.3-70b-instruct:free` **terbukti hilang**
+  dari katalog publik OpenRouter (API /api/v1/models, 451
+  model — varian itu dan semua llama `:free` sudah tidak ada)
+  → diperlakukan sama: bawaan kini **`google/gemma-4-31b-it:free`**
+  (terverifikasi gratis 0/0, konteks 262.144) + migrasi ID mati.
+  Gemini `gemini-2.5-flash` **masih hidup** (terdaftar di
+  halaman model resmi Google AI, diperbarui 2026-10-28) →
+  bawaan tidak berubah.
+- **Peringatan "halaman belum dibersihkan" di Typesetting.**
+  Melompat Terjemahan → Typesetting tanpa Bersihkan dulu kini
+  tidak diam lagi: bila halaman aktif punya blok tapi belum ada
+  pekerjaan bersih sama sekali (tanpa ops/sapuan bersih dan
+  tanpa halaman bersih tersimpan), panel peringatan amber
+  tampil di atas kanvas — "Halaman ini belum dibersihkan — teks
+  asli masih ada dan akan tertimpa teks terjemahan. Bersihkan
+  dulu lewat halaman Bersihkan." — plus tombol **Ke Halaman
+  Bersihkan**. Terapkan Otomatis pada halaman/bab yang belum
+  bersih menambahkan pengingat yang sama ke status (tidak
+  memblokir). Bar petunjuk Terjemahan kini menyebut urutan
+  lengkap: Deteksi → Bersihkan → Terjemahkan → Poles AI →
+  Terapkan Otomatis di Typesetting. Keputusan tampil adalah
+  fungsi murni teruji (tanpa blok → sembunyi; sudah bersih →
+  sembunyi; ada blok + belum bersih → tampil).
+- **Toggle "Kotak" di Typesetting** (pola yang sama seperti
+  Deteksi & OCR): untuk menilai hasil tanpa bingkai teal. Mati
+  = kanvas menampilkan bitmap final **murni** (tanpa bingkai
+  blok, lencana nomor, pegangan) dan klik/seret blok dari
+  kanvas dinonaktifkan agar tidak ada suntingan tak terlihat
+  (geser tampilan & zoom tetap jalan); hidup = perilaku
+  sebelumnya persis. Bawaan: hidup. Bukti visual Xvfb:
+  `tmp/tinta-v0716-typeset-warning.png` (peringatan + kotak
+  hidup) & `tmp/tinta-v0716-typeset-nobox.png` (kotak mati).
+- Tes: **216 total — 215 lolos, 0 gagal, 1 skip** (runner
+  konsol dalam-proses; XML `tmp/xunit-results-v0716.xml`;
+  baseline v0.7.15: 197. Baru +19 di `V0716Tests`: bawaan
+  ketiga penyedia, migrasi menimpa ID mati, migrasi tidak
+  menyentuh model kustom/pasangan penyedia lain, idempoten,
+  muat berkas pengaturan lama, matriks keputusan peringatan,
+  cek halaman bersih tersimpan, logika keadaan toggle).
+  Build Release bersih 0/0; publish win-x64 single-file
+  (IncludeNativeLibrariesForSelfExtract): **TintaStudio.exe
+  124.957.265 byte** PE32+ GUI di
+  ~/workspace/projects/tinta-studio-publish-v0716/; string
+  "v0.7.16", "openai/gpt-oss-120b", "google/gemma-4-31b-it:free",
+  teks peringatan & tombolnya terverifikasi tertanam. Commit
+  lokal, tidak di-push, tidak diunggah.
+- Batas jujur: (1) migrasi berjalan di ingatan saat pengaturan
+  dimuat dan bertahan di disk pada simpan berikutnya —
+  pemanggilan penyedia tidak pernah lagi memakai ID mati sejak
+  muat pertama v0.7.16; (2) klik tombol "Ke Halaman Bersihkan"
+  & toggle Kotak terverifikasi lewat build + screenshot Xvfb
+  dua keadaan — klik UI sungguhan di Windows menunggu PC
+  pemilik, pola verifikasi yang sama seperti rilis sebelumnya;
+  (3) ketersediaan model penyedia bisa berubah lagi sewaktu-
+  waktu — kolom Model di Pengaturan selalu bisa diganti manual.
+
 ## Status: v0.7.15 — Pegangan tarik kotak, dedupe tumpuk, saringan sampah & OCR Inggris diperbaiki
 
 Empat keluhan pemilik atas bab strip asli (The Grand Duke of the
