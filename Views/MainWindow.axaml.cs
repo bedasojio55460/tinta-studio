@@ -20,6 +20,17 @@ public partial class MainWindow : Window
 
     private MainWindowViewModel? ViewModel => DataContext as MainWindowViewModel;
 
+    /// <summary>Pembuka dialog pengaturan otomatis untuk alat uji
+    /// (TINTA_SETTINGS=1): tunggu jendela tampil penuh dulu.</summary>
+    private async Task OpenSettingsDialogDelayedAsync(MainWindowViewModel vm)
+    {
+        await Task.Delay(1500);
+        var dialog = new TranslateSettingsWindow();
+        var saved = await dialog.ShowDialog<bool>(this);
+        if (saved)
+            vm.ReloadSettings();
+    }
+
     private async void OnOpened(object? sender, EventArgs e)
     {
         UpdateMenuStyles();
@@ -39,6 +50,14 @@ public partial class MainWindow : Window
 
             // Alat uji & screenshot: TINTA_OPEN=<jalur> membuka bab otomatis,
             // TINTA_VIEW=library|viewer|detect|clean|translate|typeset|export memilih halaman awal.
+            // TINTA_SETTINGS=1 (v0.7.11): buka dialog Pengaturan Key &
+            // Model otomatis — untuk screenshot Instal Instan/Hapus Bersih.
+            if (Environment.GetEnvironmentVariable("TINTA_SETTINGS") == "1")
+            {
+                // Tunda sampai jendela benar-benar tampil & pemilik
+                // dialog siap (Post langsung di OnOpened terlalu dini).
+                _ = OpenSettingsDialogDelayedAsync(vm);
+            }
             var autoOpen = Environment.GetEnvironmentVariable("TINTA_OPEN");
             if (!string.IsNullOrWhiteSpace(autoOpen))
                 await vm.OpenChapterPathAsync(autoOpen);

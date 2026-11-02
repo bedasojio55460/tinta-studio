@@ -11,6 +11,37 @@ karya sendiri; tidak ada aset/identitas produk referensi yang
 disalin. Peta fitur lengkap: [docs/FEATURE-MAP.md](docs/FEATURE-MAP.md),
 arsitektur: [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Status: v0.7.11 — Instal Instan (Ollama + Ambil Key) & Hapus Bersih
+
+Dialog **Pengaturan Key & Model** kini mengurus sendiri hal-hal
+yang dulu harus dilakukan manual di luar aplikasi:
+
+- **Instal Instan Ollama**: status Ollama di PC dicek otomatis
+  saat dialog dibuka (GET `/api/tags`) — dibedakan *jalan*,
+  *terpasang tapi belum jalan* (tombol **Jalankan Ollama**), dan
+  *belum terpasang* (tombol **Pasang Ollama**: unduh installer
+  resmi dari ollama.com dengan progres, lalu jalankan wizard-nya).
+  Daftar model kurasi (qwen2.5:7b/14b/3b, llama3.1:8b,
+  gemma3:12b) menunjukkan status terpasang per baris dengan
+  **Unduh** (progres persen dari aliran `/api/pull`, bisa
+  dibatalkan), **Pakai** (mengisi kolom Model Ollama), dan
+  **Hapus** (`/api/delete`).
+- **Tombol Ambil Key** di kartu Gemini, Groq, dan OpenRouter
+  membuka halaman key resmi penyedia di browser — alamat API
+  bukan lagi satu-satunya petunjuk (dan memang 404 bila dibuka).
+- **Hapus Bersih — Zona Berbahaya**: seksi di bagian bawah dialog
+  menampilkan instruksi jujur + daftar persis folder yang akan
+  dihapus beserta ukuran live dari disk (folder data aplikasi
+  dari resolver `AppConfig`, folder cache model dari
+  `ModelStore`), lalu konfirmasi kedua yang menyebut ulang
+  daftar + total persis sebelum eksekusi. Exe aplikasi, proyek
+  pengguna di folder lain, dan model Ollama TIDAK disentuh.
+- **Tes: 129 total — 128 lolos, 0 gagal, 1 skip** (XML
+  `tmp/xunit-results-v0711.xml`; +20 tes baru: parsing
+  `/api/tags` & progres pull, pemetaan keadaan Ollama, rencana
+  & eksekusi Hapus Bersih; skip = loopback sandbox yang sama
+  seperti rilis sebelumnya).
+
 ## Status: v0.7.10 — Ikon Aplikasi pada .exe
 
 Berkas `TintaStudio.exe` hasil publish kini menampilkan

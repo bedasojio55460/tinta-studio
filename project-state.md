@@ -1029,3 +1029,72 @@
   total — 108 lolos, 0 gagal, 1 skip (XML
   tmp/xunit-results-v0710.xml; sama hijau dengan baseline
   v0.7.9). Commit lokal, tidak di-push.
+- 2026-11-01: **v0.7.11 — Instal Instan (Ollama + Ambil Key) &
+  Hapus Bersih (permintaan Ando: "instal instan yang mencakup
+  semua di bagian key" + perluasan Hapus Bersih)**:
+  - Layanan baru `Services/Ollama.cs`: klien API manajemen
+    Ollama (akar http://localhost:11434, BUKAN /v1) — probe
+    GET /api/tags (timeout 3 dtk) + deteksi executable (PATH,
+    %LOCALAPPDATA%\Programs\Ollama, %ProgramFiles%\Ollama) →
+    tiga keadaan (Running/InstalledNotRunning/NotInstalled,
+    pemetaan murni MapState); POST /api/pull aliran JSONL
+    dengan parsing progres completed/total per baris; DELETE
+    /api/delete; unduh OllamaSetup.exe resmi ke temp dengan
+    progres; Process.Start untuk serve/installer/browser.
+    Parsing & pemetaan murni/statis → teruji penuh via stub
+    HttpMessageHandler dalam-proses + pencari exe tiruan.
+  - Dialog Pengaturan Key & Model: kartu Ollama memuat seksi
+    INSTAL INSTAN — status otomatis saat dialog dibuka +
+    Segarkan; tombol Pasang Ollama (teks jujur soal wizard/UAC)
+    / Jalankan Ollama sesuai keadaan; daftar kurasi
+    qwen2.5:7b (±4,7 GB, "Saran utama — JA/KO/ZH→ID"),
+    qwen2.5:14b, qwen2.5:3b, llama3.1:8b, gemma3:12b per baris:
+    Terpasang/Unduh (progres % live, bisa dibatalkan lewat
+    baris Batal yang tetap aktif saat panel sibuk)/Pakai
+    (mengisi kolom Model dengan nama persis dari /api/tags)/
+    Hapus; model terpasang di luar kurasi ikut tampil. Semua
+    async, galat = teks manusiawi. Pencocokan nama sadar alias
+    :latest (bawaan lama "llama3.1" tetap sah).
+  - Tombol **Ambil Key** persis di kartu Gemini
+    (aistudio.google.com/apikey), Groq (console.groq.com/keys),
+    OpenRouter (openrouter.ai/keys) + keterangan "terbuka di
+    browser; tempel key-nya di sini sesudah dapat".
+  - **Hapus Bersih — Zona Berbahaya** (`Services/DataWipe.cs`):
+    instruksi jujur + daftar folder persis dengan ukuran LIVE
+    dari resolver yang sama dengan aplikasi (AppConfig.ConfigDir;
+    ModelStore.CacheRootDir baru = induk CacheDir, tanpa
+    hardcode duplikat) + kalimat eksklusi (exe tidak bisa
+    menghapus dirinya; proyek .json/.cbz di folder lain aman;
+    model Ollama di ~/.ollama/models TIDAK disentuh). Tombol
+    "Hapus Semua Data Tinta…" → konfirmasi kedua menyebut ulang
+    daftar + total persis → eksekusi rekursif; folder tak ada =
+    "sudah bersih"; state key/pengaturan dialog dikosongkan di
+    memori (Simpan tidak menulis ulang data yang dibersihkan);
+    hasil "Selesai — N folder terhapus, ±X MB dibebaskan. Tutup
+    aplikasi untuk menyelesaikan."
+  - Alat screenshot: env TINTA_SETTINGS=1 membuka dialog
+    otomatis (tertunda 1,5 dtk) — screenshot
+    docs/v0711-instal-instan.png (keadaan "belum terpasang" di
+    VM ini + Ambil Key di 3 kartu) dan
+    docs/v0711-hapus-bersih.png (ukuran live terbaca: data
+    0,6 MB + cache 319,3 MB).
+  - Tes: **129 total — 128 lolos, 0 gagal, 1 skip** (XML
+    tmp/xunit-results-v0711.xml; +14 OllamaTests +6
+    DataWipeTests; baseline v0.7.10 109/108/0/1 tetap hijau;
+    skip = loopback sandbox yang sama). Catatan harness:
+    runner konsol harus berjalan dari dalam
+    TintaStudio.Tests/bin (tes CLI menyelesaikan DLL aplikasi
+    relatif terhadap lokasi rakitan tes) dan /tmp adalah tmpfs
+    512 MB — jangan bangun runner di sana.
+  - Build Release bersih 0/0; publish win-x64 single-file:
+    **TintaStudio.exe 124.830.289 byte** PE32+ GUI (ikon
+    multi-ukuran terverifikasi tertanam via wrestool/icotool).
+  - Batas jujur: alur unduh installer, pull model asli, dan
+    wizard installer TIDAK dibuktikan ujung-ke-ujung dari VM
+    ini (TCP keluar proses .NET diblokir sandbox; tidak ada
+    Ollama di VM) — yang terbukti: seluruh logika parsing/
+    pemetaan/progres lewat stub dalam-proses, keadaan
+    NotInstalled tampil nyata di UI VM, dan kode proses
+    mengikuti pola yang sama seperti rilis sebelumnya.
+    Pembuktian penuh menunggu PC Windows Ando. Commit lokal,
+    tidak di-push.

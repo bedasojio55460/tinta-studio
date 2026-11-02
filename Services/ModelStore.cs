@@ -28,9 +28,28 @@ public static class ModelStore
             var env = Environment.GetEnvironmentVariable("TINTA_MODEL_DIR");
             if (!string.IsNullOrWhiteSpace(env))
                 return env;
+            return Path.Combine(CacheRootDir, "models");
+        }
+    }
+
+    /// <summary>Akar cache aplikasi: ~/.cache/tinta-studio (induk
+    /// CacheDir). Dengan override TINTA_MODEL_DIR, CacheDir menunjuk
+    /// langsung ke folder model khusus dan akarnya adalah induk
+    /// folder itu. Dipakai rencana Hapus Bersih (v0.7.11) agar jalur
+    /// cache tidak diduplikasi di tempat lain.</summary>
+    public static string CacheRootDir
+    {
+        get
+        {
+            var env = Environment.GetEnvironmentVariable("TINTA_MODEL_DIR");
+            if (!string.IsNullOrWhiteSpace(env))
+                return Path.GetDirectoryName(Path.GetFullPath(env))
+                    ?? Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                        ".cache", "tinta-studio");
             return Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".cache", "tinta-studio", "models");
+                ".cache", "tinta-studio");
         }
     }
 
